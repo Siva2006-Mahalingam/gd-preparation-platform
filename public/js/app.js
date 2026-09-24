@@ -32,12 +32,12 @@ function clearAuth() {
 
 function logout() {
   clearAuth();
-  window.location.href = '/';
+  window.location.href = '/auth.html';
 }
 
 function requireAuth() {
   if (!getToken() || !getUser()) {
-    window.location.href = '/';
+    window.location.href = '/auth.html';
     return false;
   }
   return true;
@@ -68,7 +68,7 @@ async function api(endpoint, options = {}) {
   } catch (err) {
     if (err.message === 'Invalid or expired token') {
       clearAuth();
-      window.location.href = '/';
+      window.location.href = '/auth.html';
       return;
     }
     throw err;

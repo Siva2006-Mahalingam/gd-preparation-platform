@@ -3,66 +3,318 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="description" content="GD Preparation Platform — Practice group discussions with peers and receive individual AI-powered feedback.">
-  <title>GD Platform — Sign In</title>
+  <meta name="description" content="GD Preparation Platform — Practice group discussions with peers, participate in real-time sessions, and receive AI-powered individual performance feedback.">
+  <title>GD Preparation Platform — Practice. Participate. Improve.</title>
   <link rel="stylesheet" href="/css/styles.css">
+  <link rel="stylesheet" href="/css/landing.css">
 </head>
-<body>
-  <div class="auth-page">
-    <div class="auth-container fade-in">
+<body class="landing-body">
 
-      <div class="auth-header">
-        <div class="auth-logo">GD</div>
-        <h1>GD Preparation Platform</h1>
-        <p>Practice group discussions and get personalised feedback.</p>
+  <!-- ═══════════════════════════════════════════════════════
+       NAVBAR
+       ═══════════════════════════════════════════════════════ -->
+  <nav class="landing-nav" id="landingNav">
+    <div class="container landing-nav-inner">
+      <a href="/" class="landing-brand">
+        <span class="brand-icon">GD</span>
+        <span class="brand-name">GD Platform</span>
+      </a>
+      <div class="landing-nav-links" id="landingNavLinks">
+        <a href="#features">Features</a>
+        <a href="#how-it-works">How It Works</a>
+        <a href="#why-us">Why Us</a>
       </div>
-
-      <div class="auth-card">
-        <div class="auth-tabs">
-          <button class="auth-tab active" id="loginTab">Sign In</button>
-          <button class="auth-tab" id="registerTab">Create Account</button>
-        </div>
-
-        <!-- Login Form -->
-        <form class="auth-form active" id="loginForm">
-          <div class="form-group">
-            <label class="form-label" for="loginEmail">Email address</label>
-            <input type="email" id="loginEmail" class="form-input"
-              placeholder="you@example.com" required autocomplete="email">
-          </div>
-          <div class="form-group">
-            <label class="form-label" for="loginPassword">Password</label>
-            <input type="password" id="loginPassword" class="form-input"
-              placeholder="Enter your password" required autocomplete="current-password">
-          </div>
-          <button type="submit" class="btn btn-primary btn-block btn-lg" style="margin-top: 8px;">Sign In</button>
-        </form>
-
-        <!-- Register Form -->
-        <form class="auth-form" id="registerForm">
-          <div class="form-group">
-            <label class="form-label" for="registerUsername">Username</label>
-            <input type="text" id="registerUsername" class="form-input"
-              placeholder="Choose a username" required minlength="3" autocomplete="username">
-          </div>
-          <div class="form-group">
-            <label class="form-label" for="registerEmail">Email address</label>
-            <input type="email" id="registerEmail" class="form-input"
-              placeholder="you@example.com" required autocomplete="email">
-          </div>
-          <div class="form-group">
-            <label class="form-label" for="registerPassword">Password</label>
-            <input type="password" id="registerPassword" class="form-input"
-              placeholder="At least 6 characters" required minlength="6" autocomplete="new-password">
-          </div>
-          <button type="submit" class="btn btn-primary btn-block btn-lg" style="margin-top: 8px;">Create Account</button>
-        </form>
+      <div class="landing-nav-actions">
+        <a href="/auth.html" class="btn btn-ghost" id="loginBtn">Log In</a>
+        <a href="/auth.html#register" class="btn btn-primary" id="signupBtn">Sign Up Free</a>
       </div>
-
+      <button class="landing-mobile-btn" id="landingMobileBtn" aria-label="Toggle menu">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+      </button>
     </div>
-  </div>
+  </nav>
 
-  <script src="/js/app.js"></script>
-  <script src="/js/auth.js"></script>
+  <!-- ═══════════════════════════════════════════════════════
+       HERO SECTION
+       ═══════════════════════════════════════════════════════ -->
+  <section class="hero-section">
+    <div class="container">
+      <div class="hero-content">
+        <div class="hero-badge">
+          <span class="hero-badge-dot"></span>
+          Real-time GD practice for students
+        </div>
+        <h1 class="hero-title">
+          Practice. <span class="hero-accent">Participate.</span> Improve.
+        </h1>
+        <p class="hero-description">
+          Sharpen your Group Discussion skills with real-time practice rooms, peer collaboration, and 
+          AI-powered individual feedback — all in one platform built for serious preparation.
+        </p>
+        <div class="hero-actions">
+          <a href="/auth.html#register" class="btn btn-primary btn-lg hero-btn">
+            Get Started — It's Free
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+          </a>
+          <a href="#features" class="btn btn-secondary btn-lg hero-btn">See How It Works</a>
+        </div>
+        <div class="hero-trust">
+          <div class="hero-trust-avatars">
+            <span class="hero-trust-avatar" style="background:#3b4fd8;">S</span>
+            <span class="hero-trust-avatar" style="background:#1a7f4b;">A</span>
+            <span class="hero-trust-avatar" style="background:#b45309;">R</span>
+            <span class="hero-trust-avatar" style="background:#5b21b6;">M</span>
+          </div>
+          <span class="hero-trust-text">Join students already practicing on GD Platform</span>
+        </div>
+      </div>
+      <div class="hero-visual">
+        <div class="hero-mockup">
+          <div class="mockup-topbar">
+            <div class="mockup-dots">
+              <span></span><span></span><span></span>
+            </div>
+            <div class="mockup-title">GD Room — Live Session</div>
+          </div>
+          <div class="mockup-body">
+            <div class="mockup-topic">
+              <div class="mockup-label">TOPIC</div>
+              <div class="mockup-topic-text">Should AI replace traditional teaching methods?</div>
+            </div>
+            <div class="mockup-participants">
+              <div class="mockup-participant speaking">
+                <span class="mp-avatar">A</span>
+                <span class="mp-name">Arun K.</span>
+                <span class="mp-status speaking">● Speaking</span>
+              </div>
+              <div class="mockup-participant">
+                <span class="mp-avatar">P</span>
+                <span class="mp-name">Priya S.</span>
+                <span class="mp-status">Ready</span>
+              </div>
+              <div class="mockup-participant">
+                <span class="mp-avatar">R</span>
+                <span class="mp-name">Rahul M.</span>
+                <span class="mp-status">Ready</span>
+              </div>
+            </div>
+            <div class="mockup-timer">
+              <span>⏱</span> 04:32 remaining
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════════════
+       FEATURES
+       ═══════════════════════════════════════════════════════ -->
+  <section class="features-section" id="features">
+    <div class="container">
+      <div class="section-intro">
+        <span class="section-tag">Platform Features</span>
+        <h2 class="section-heading">Everything you need to master Group Discussions</h2>
+        <p class="section-subheading">From real-time practice to personalized AI feedback — we've built every tool you need to stand out.</p>
+      </div>
+      <div class="features-grid">
+        <div class="feature-card">
+          <div class="feature-icon" style="background: var(--brand-light); color: var(--brand);">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          </div>
+          <h3 class="feature-title">Real-Time GD Rooms</h3>
+          <p class="feature-desc">Create or join live discussion rooms. Collaborate with peers in timed sessions with structured turn-taking.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon" style="background: var(--success-bg); color: var(--success);">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+          </div>
+          <h3 class="feature-title">Voice & Transcript Capture</h3>
+          <p class="feature-desc">Speak naturally with your microphone. Your voice is captured and transcribed in real-time using browser-based speech recognition.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon" style="background: #ede9fe; color: #5b21b6;">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+          </div>
+          <h3 class="feature-title">AI-Powered Evaluation</h3>
+          <p class="feature-desc">After each session, receive a detailed AI-generated scorecard with ratings across communication, relevance, leadership, and more.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon" style="background: var(--warning-bg); color: var(--warning);">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+          </div>
+          <h3 class="feature-title">Performance Analytics</h3>
+          <p class="feature-desc">Track your progress over time. Visualise score trends, identify strengths, and pinpoint areas where you can improve.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon" style="background: var(--info-bg); color: var(--info);">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+          </div>
+          <h3 class="feature-title">Browser-Based — No Install</h3>
+          <p class="feature-desc">No software downloads. Everything runs in your browser. Just sign up, create a room, and start practicing immediately.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon" style="background: var(--danger-bg); color: var(--danger);">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3H14z"/><path d="M4 22H2a1 1 0 0 1-1-1v-7a1 1 0 0 1 1-1h2"/></svg>
+          </div>
+          <h3 class="feature-title">Strengths & Improvement Tips</h3>
+          <p class="feature-desc">Get personalised recommendations on what you're doing well and where you can level up in your next session.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════════════
+       HOW IT WORKS
+       ═══════════════════════════════════════════════════════ -->
+  <section class="how-section" id="how-it-works">
+    <div class="container">
+      <div class="section-intro">
+        <span class="section-tag">How It Works</span>
+        <h2 class="section-heading">Start practicing in 3 simple steps</h2>
+        <p class="section-subheading">No complicated setup. No downloads. Just sign up and dive in.</p>
+      </div>
+      <div class="steps-grid">
+        <div class="step-card">
+          <div class="step-number">1</div>
+          <h3 class="step-title">Create or Join a Room</h3>
+          <p class="step-desc">Set a topic, invite peers via a room code, or browse and join public rooms that match your interests.</p>
+        </div>
+        <div class="step-connector">
+          <svg width="40" height="12" viewBox="0 0 40 12" fill="none"><path d="M0 6H36M36 6L30 1M36 6L30 11" stroke="var(--border-strong)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </div>
+        <div class="step-card">
+          <div class="step-number">2</div>
+          <h3 class="step-title">Discuss & Record</h3>
+          <p class="step-desc">Speak using your microphone in timed turns. Your contributions are recorded and transcribed automatically.</p>
+        </div>
+        <div class="step-connector">
+          <svg width="40" height="12" viewBox="0 0 40 12" fill="none"><path d="M0 6H36M36 6L30 1M36 6L30 11" stroke="var(--border-strong)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </div>
+        <div class="step-card">
+          <div class="step-number">3</div>
+          <h3 class="step-title">Get AI Feedback</h3>
+          <p class="step-desc">Receive a detailed scorecard with category-wise ratings, personalised strengths, and improvement suggestions.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════════════
+       WHY US
+       ═══════════════════════════════════════════════════════ -->
+  <section class="why-section" id="why-us">
+    <div class="container">
+      <div class="section-intro">
+        <span class="section-tag">Why GD Platform</span>
+        <h2 class="section-heading">Built for students who want to get better</h2>
+      </div>
+      <div class="why-grid">
+        <div class="why-card">
+          <div class="why-stat">100%</div>
+          <div class="why-label">Free to use</div>
+          <p class="why-desc">No hidden costs. Practice as many sessions as you want, completely free.</p>
+        </div>
+        <div class="why-card">
+          <div class="why-stat">Real-time</div>
+          <div class="why-label">Live collaboration</div>
+          <p class="why-desc">Discuss with peers in real-time rooms with low-latency WebSocket connections.</p>
+        </div>
+        <div class="why-card">
+          <div class="why-stat">AI</div>
+          <div class="why-label">Powered feedback</div>
+          <p class="why-desc">Get multi-dimensional feedback evaluated by advanced language models, not generic templates.</p>
+        </div>
+        <div class="why-card">
+          <div class="why-stat">Private</div>
+          <div class="why-label">Secure rooms</div>
+          <p class="why-desc">Create private rooms with unique codes. Only invited participants can join your session.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════════════
+       CTA
+       ═══════════════════════════════════════════════════════ -->
+  <section class="cta-section">
+    <div class="container">
+      <div class="cta-card">
+        <h2 class="cta-heading">Ready to improve your GD skills?</h2>
+        <p class="cta-subtext">Join the platform, create your first room, and get AI-powered feedback in minutes.</p>
+        <div class="cta-actions">
+          <a href="/auth.html#register" class="btn btn-primary btn-lg hero-btn">
+            Create Free Account
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+          </a>
+          <a href="/auth.html" class="btn btn-secondary btn-lg hero-btn">Log In</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════════════
+       FOOTER
+       ═══════════════════════════════════════════════════════ -->
+  <footer class="landing-footer">
+    <div class="container landing-footer-inner">
+      <div class="landing-footer-brand">
+        <span class="brand-icon">GD</span>
+        <span class="brand-name">GD Platform</span>
+      </div>
+      <p class="landing-footer-text">Built for students. Powered by AI.</p>
+    </div>
+  </footer>
+
+  <script>
+    // ── Redirect if already logged in ──
+    (function() {
+      const token = localStorage.getItem('gd_token');
+      const user = localStorage.getItem('gd_user');
+      if (token && user) {
+        window.location.href = '/dashboard.html';
+      }
+    })();
+
+    // ── Smooth scroll for anchor links ──
+    document.querySelectorAll('a[href^="#"]').forEach(link => {
+      link.addEventListener('click', e => {
+        e.preventDefault();
+        const target = document.querySelector(link.getAttribute('href'));
+        if (target) {
+          target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          // Close mobile menu if open
+          document.getElementById('landingNavLinks')?.classList.remove('mobile-open');
+        }
+      });
+    });
+
+    // ── Mobile menu toggle ──
+    document.getElementById('landingMobileBtn')?.addEventListener('click', () => {
+      document.getElementById('landingNavLinks')?.classList.toggle('mobile-open');
+    });
+
+    // ── Navbar scroll effect ──
+    const nav = document.getElementById('landingNav');
+    window.addEventListener('scroll', () => {
+      nav.classList.toggle('scrolled', window.scrollY > 20);
+    });
+
+    // ── Intersection Observer for reveal-on-scroll ──
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          entry.target.classList.add('revealed');
+          observer.unobserve(entry.target);
+        }
+      });
+    }, { threshold: 0.1, rootMargin: '0px 0px -40px 0px' });
+
+    document.querySelectorAll('.feature-card, .step-card, .why-card, .cta-card').forEach(el => {
+      el.classList.add('reveal-on-scroll');
+      observer.observe(el);
+    });
+  </script>
+
 </body>
 </html>

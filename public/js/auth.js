@@ -14,6 +14,14 @@ document.addEventListener('DOMContentLoaded', () => {
   const loginForm = document.getElementById('loginForm');
   const registerForm = document.getElementById('registerForm');
 
+  // Auto-switch to register tab if URL hash is #register
+  if (window.location.hash === '#register') {
+    registerTab.classList.add('active');
+    loginTab.classList.remove('active');
+    registerForm.classList.add('active');
+    loginForm.classList.remove('active');
+  }
+
   // Tab switching
   loginTab.addEventListener('click', () => {
     loginTab.classList.add('active');
