@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="GD Platform — Performance Analytics">
+  <title>GD Platform — Performance</title>
+  <link rel="stylesheet" href="/css/styles.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+
+  <!-- Navbar -->
+  <nav class="navbar">
+    <div class="container">
+      <a class="navbar-brand" href="dashboard.html">
+        <div class="brand-icon">GD</div>
+        <span class="brand-name">GD Platform</span>
+      </a>
+      <ul class="navbar-links">
+        <li><a href="dashboard.html">Dashboard</a></li>
+        <li><a href="sessions.html">Sessions</a></li>
+        <li><a href="performance.html" class="active">Performance</a></li>
+        <li><a href="public-rooms.html">Public Rooms</a></li>
+      </ul>
+      <div class="navbar-user">
+        <span class="user-name"></span>
+        <div class="navbar-avatar"></div>
+        <button class="btn btn-ghost btn-sm" id="logoutBtn">Logout</button>
+        <button class="mobile-nav-btn">&#9776;</button>
+      </div>
+    </div>
+  </nav>
+
+  <div class="page">
+    <div class="container">
+
+      <div class="section-header fade-in" style="margin-bottom: var(--s-8);">
+        <div>
+          <h1>Performance</h1>
+          <p class="mt-2">Track your progress across all group discussion sessions.</p>
+        </div>
+      </div>
+
+      <!-- Loading -->
+      <div id="loadingState" class="loading-container">
+        <div class="spinner"></div>
+        <p>Analyzing performance data...</p>
+      </div>
+
+      <!-- Performance Content -->
+      <div id="performanceContainer" class="hidden fade-in">
+
+        <!-- Stats -->
+        <div class="stats-grid" style="margin-bottom: var(--s-8);">
+          <div class="stat-card">
+            <div class="card-title">Total Sessions</div>
+            <div class="card-value" id="statTotal">0</div>
+          </div>
+          <div class="stat-card">
+            <div class="card-title">Average Score</div>
+            <div class="card-value" id="statAvg">—</div>
+          </div>
+          <div class="stat-card">
+            <div class="card-title">Speaking Time</div>
+            <div class="card-value" id="statTime">—</div>
+          </div>
+          <div class="stat-card">
+            <div class="card-title">Contributions</div>
+            <div class="card-value" id="statContributions">0</div>
+          </div>
+        </div>
+
+        <!-- Charts -->
+        <div class="grid-2">
+          <div class="chart-container">
+            <div class="chart-title">Score Trend</div>
+            <div class="chart-canvas-wrapper">
+              <canvas id="trendChart"></canvas>
+            </div>
+          </div>
+          <div class="chart-container">
+            <div class="chart-title">Skill Breakdown</div>
+            <div class="chart-canvas-wrapper">
+              <canvas id="radarChart"></canvas>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+  </div>
+
+  <script src="/js/app.js"></script>
+  <script src="/js/performance.js"></script>
+</body>
+</html>

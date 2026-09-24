@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="GD Platform — Session Result and Evaluation">
+  <title>GD Platform — Session Result</title>
+  <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+
+  <!-- Navbar -->
+  <nav class="navbar">
+    <div class="container">
+      <a class="navbar-brand" href="dashboard.html">
+        <div class="brand-icon">GD</div>
+        <span class="brand-name">GD Platform</span>
+      </a>
+      <ul class="navbar-links">
+        <li><a href="dashboard.html">Dashboard</a></li>
+        <li><a href="sessions.html" class="active">Sessions</a></li>
+        <li><a href="performance.html">Performance</a></li>
+        <li><a href="public-rooms.html">Public Rooms</a></li>
+      </ul>
+      <div class="navbar-user">
+        <span class="user-name"></span>
+        <div class="navbar-avatar"></div>
+        <button class="btn btn-ghost btn-sm" id="logoutBtn">Logout</button>
+        <button class="mobile-nav-btn">&#9776;</button>
+      </div>
+    </div>
+  </nav>
+
+  <div class="page">
+    <div class="container">
+
+      <!-- Loading -->
+      <div id="loadingState" class="loading-container">
+        <div class="spinner"></div>
+        <p>Loading your result...</p>
+      </div>
+
+      <!-- Result View -->
+      <div id="resultView" class="hidden fade-in result-page">
+
+        <div class="result-header">
+          <a href="dashboard.html" class="btn btn-ghost btn-sm mb-4">&#8592; Back to Dashboard</a>
+          <div class="badge badge-blue mb-2">Session Result</div>
+          <h1 id="topicText"></h1>
+          <p class="text-tertiary mt-2 text-sm" id="sessionMeta"></p>
+        </div>
+
+        <!-- Overall Score -->
+        <div class="result-overall">
+          <div class="score-circle">
+            <div class="score-number" id="overallScore">0</div>
+            <div class="score-max">/100</div>
+          </div>
+          <div class="result-overall-text">
+            <h3>Overall Score</h3>
+            <p>Based on your contributions during the discussion.</p>
+          </div>
+        </div>
+
+        <!-- Category Scores -->
+        <h3 class="mb-4">Score Breakdown</h3>
+        <div class="score-breakdown" id="scoreBreakdown">
+          <!-- Populated by JS -->
+        </div>
+
+        <!-- Strengths & Improvements -->
+        <div class="grid-2 mb-6">
+          <div class="feedback-section">
+            <h3>Strengths</h3>
+            <ul class="feedback-list strengths-list" id="strengthsList"></ul>
+          </div>
+          <div class="feedback-section">
+            <h3>Areas to Improve</h3>
+            <ul class="feedback-list improvements-list" id="improvementsList"></ul>
+          </div>
+        </div>
+
+        <!-- Detailed Feedback -->
+        <div class="feedback-section mb-6">
+          <h3>Detailed Feedback</h3>
+          <div class="feedback-text" id="feedbackText"></div>
+        </div>
+
+        <!-- Contributions -->
+        <div class="feedback-section">
+          <h3>Your Contributions</h3>
+          <div id="contributionsList" class="contributions-list"></div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <script src="/js/app.js"></script>
+  <script src="/js/result.js"></script>
+</body>
+</html>

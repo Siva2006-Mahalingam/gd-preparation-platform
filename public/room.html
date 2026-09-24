@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="GD Room — Join the live group discussion.">
+  <title>GD Platform — Room</title>
+  <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+
+  <!-- Navbar -->
+  <nav class="navbar">
+    <div class="container">
+      <a class="navbar-brand" href="dashboard.html">
+        <div class="brand-icon">GD</div>
+        <span class="brand-name">GD Platform</span>
+      </a>
+      <ul class="navbar-links" id="navLinks">
+        <li><a href="dashboard.html">Dashboard</a></li>
+        <li><a href="sessions.html">Sessions</a></li>
+        <li><a href="performance.html">Performance</a></li>
+        <li><a href="public-rooms.html">Public Rooms</a></li>
+      </ul>
+      <div class="navbar-user">
+        <span class="user-name"></span>
+        <div class="navbar-avatar"></div>
+        <button class="btn btn-ghost btn-sm" id="logoutBtn">Logout</button>
+        <button class="mobile-nav-btn" id="mobileNavBtn">&#9776;</button>
+      </div>
+    </div>
+  </nav>
+
+  <div class="page">
+    <div class="container">
+      <div id="roomContainer">
+
+        <!-- Loading -->
+        <div id="loadingState" class="loading-container">
+          <div class="spinner"></div>
+          <p>Loading room...</p>
+        </div>
+
+        <!-- Waiting Room -->
+        <div id="waitingRoom" class="hidden" style="max-width: 680px; margin: 0 auto;">
+
+          <!-- Topic -->
+          <div class="gd-topic-bar">
+            <div class="gd-topic-label">Discussion Topic</div>
+            <div class="gd-topic-text" id="topicText"></div>
+          </div>
+
+          <!-- Room Info -->
+          <div class="room-info-bar">
+            <div class="room-info-item">
+              <div class="room-info-label">Room Code</div>
+              <div class="room-code-display" id="roomCodeDisplay" title="Click to copy"></div>
+            </div>
+            <div class="room-info-item">
+              <div class="room-info-label">Host</div>
+              <div class="room-info-value" id="hostName"></div>
+            </div>
+            <div class="room-info-item">
+              <div class="room-info-label">Participants</div>
+              <div class="room-info-value"><span id="participantCount">0</span> joined</div>
+            </div>
+          </div>
+
+          <!-- Participant List -->
+          <div class="section-header mt-6">
+            <h3 class="section-title">Participants</h3>
+          </div>
+          <div class="participant-list" id="waitingParticipants"></div>
+
+          <!-- Actions (host sees Start, others see waiting) -->
+          <div id="waitingActions" class="mt-6"></div>
+
+        </div>
+
+        <!-- Active GD Room -->
+        <div id="gdRoom" class="hidden" style="max-width: 680px; margin: 0 auto;">
+
+          <!-- Topic -->
+          <div class="gd-topic-bar">
+            <div class="gd-topic-label">Discussion Topic</div>
+            <div class="gd-topic-text" id="gdTopicText"></div>
+          </div>
+
+          <!-- Timer -->
+          <div class="gd-timer">
+            <div class="timer-label">Discussion time</div>
+            <div class="timer-value" id="timerValue">00:00</div>
+          </div>
+
+          <!-- Participants -->
+          <div class="participant-list" id="gdParticipants"></div>
+
+          <!-- Microphone -->
+          <div class="mic-section">
+            <button class="mic-btn" id="micBtn" title="Tap to speak / stop">MIC</button>
+            <div class="mic-label" id="micLabel">Tap to speak</div>
+            <div id="liveTranscriptContainer" class="live-transcript-box hidden">
+              <div class="live-transcript-header">
+                <span class="live-transcript-pulse"></span>
+                <span>Capturing speech...</span>
+              </div>
+              <div id="liveTranscriptText" class="live-transcript-text">Listening...</div>
+            </div>
+          </div>
+
+          <!-- Host end-discussion button -->
+          <div class="gd-controls" id="gdControls"></div>
+
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- End GD Confirmation -->
+  <div class="modal-overlay" id="endGdModal">
+    <div class="modal">
+      <div class="confirm-dialog">
+        <h3>End Group Discussion?</h3>
+        <p>This will stop the discussion for all participants and generate individual evaluations.</p>
+        <div class="confirm-actions">
+          <button class="btn btn-secondary" onclick="closeModal('endGdModal')">Cancel</button>
+          <button class="btn btn-danger" id="confirmEndGd">End Discussion</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Evaluation Loading -->
+  <div class="modal-overlay" id="evalLoadingModal">
+    <div class="modal">
+      <div class="loading-container" style="padding: 16px 0;">
+        <div class="spinner"></div>
+        <h3 style="margin-top: 16px;">Evaluating Performance</h3>
+        <p>Generating your individual feedback...</p>
+      </div>
+    </div>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/js/app.js"></script>
+  <script src="/js/gd.js"></script>
+</body>
+</html>

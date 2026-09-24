@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="GD Platform — Browse public discussion rooms">
+  <title>GD Platform — Public Rooms</title>
+  <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+
+  <!-- Navbar -->
+  <nav class="navbar">
+    <div class="container">
+      <a class="navbar-brand" href="dashboard.html">
+        <div class="brand-icon">GD</div>
+        <span class="brand-name">GD Platform</span>
+      </a>
+      <ul class="navbar-links">
+        <li><a href="dashboard.html">Dashboard</a></li>
+        <li><a href="sessions.html">Sessions</a></li>
+        <li><a href="performance.html">Performance</a></li>
+        <li><a href="public-rooms.html" class="active">Public Rooms</a></li>
+      </ul>
+      <div class="navbar-user">
+        <span class="user-name"></span>
+        <div class="navbar-avatar"></div>
+        <button class="btn btn-ghost btn-sm" id="logoutBtn">Logout</button>
+        <button class="mobile-nav-btn">&#9776;</button>
+      </div>
+    </div>
+  </nav>
+
+  <div class="page">
+    <div class="container">
+
+      <div class="section-header fade-in" style="margin-bottom: var(--s-8);">
+        <div>
+          <h1>Public Rooms</h1>
+          <p class="mt-2">Join active group discussions open to all students.</p>
+        </div>
+        <button class="btn btn-secondary" onclick="loadPublicRooms()">Refresh</button>
+      </div>
+
+      <div id="roomsContainer" class="fade-in">
+        <div class="loading-container">
+          <div class="spinner"></div>
+          <p>Finding public rooms...</p>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <script src="/js/app.js"></script>
+  <script src="/js/public-rooms.js"></script>
+</body>
+</html>

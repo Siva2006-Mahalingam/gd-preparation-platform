@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="GD Platform — My Sessions history">
+  <title>GD Platform — My Sessions</title>
+  <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+
+  <!-- Navbar -->
+  <nav class="navbar">
+    <div class="container">
+      <a class="navbar-brand" href="dashboard.html">
+        <div class="brand-icon">GD</div>
+        <span class="brand-name">GD Platform</span>
+      </a>
+      <ul class="navbar-links">
+        <li><a href="dashboard.html">Dashboard</a></li>
+        <li><a href="sessions.html" class="active">Sessions</a></li>
+        <li><a href="performance.html">Performance</a></li>
+        <li><a href="public-rooms.html">Public Rooms</a></li>
+      </ul>
+      <div class="navbar-user">
+        <span class="user-name"></span>
+        <div class="navbar-avatar"></div>
+        <button class="btn btn-ghost btn-sm" id="logoutBtn">Logout</button>
+        <button class="mobile-nav-btn">&#9776;</button>
+      </div>
+    </div>
+  </nav>
+
+  <div class="page">
+    <div class="container">
+
+      <div class="section-header fade-in" style="margin-bottom: var(--s-8);">
+        <div>
+          <h1>My Sessions</h1>
+          <p class="mt-2">Review your past group discussions and feedback.</p>
+        </div>
+      </div>
+
+      <div id="sessionsContainer" class="fade-in">
+        <div class="loading-container">
+          <div class="spinner"></div>
+          <p>Loading your sessions...</p>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <script src="/js/app.js"></script>
+  <script src="/js/sessions.js"></script>
+</body>
+</html>
