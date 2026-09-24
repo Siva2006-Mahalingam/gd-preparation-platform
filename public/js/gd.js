@@ -87,6 +87,18 @@ function connectSocket(roomCode) {
     // Update participant list UI (handled by participant-update)
   });
 
+  socket.on('mic-acquired', ({ userId, username, socketId }) => {
+    handleMicAcquired({ userId, username, socketId });
+  });
+
+  socket.on('mic-released', (data) => {
+    handleMicReleased(data?.previousSpeakerUsername);
+  });
+
+  socket.on('mic-rejected', ({ speakerUsername, message }) => {
+    handleMicRejected({ speakerUsername, message });
+  });
+
   socket.on('gd-ending', () => {
     openModal('evalLoadingModal');
   });
@@ -162,6 +174,7 @@ function showGdRoom() {
   // Mic button
   const micBtn = document.getElementById('micBtn');
   micBtn.addEventListener('click', toggleMicrophone);
+  handleMicReleased();
 
   // Host controls
   const controlsDiv = document.getElementById('gdControls');
@@ -251,22 +264,180 @@ function updateTimer() {
 }
 
 // ══════════════════════════════════════════════════════════
-// MICROPHONE — Tap to speak / Tap to stop + Real-Time STT
+// MICROPHONE — First-Come-First-Served Room-Wide System
+// Server maintains lock via Socket.IO. First click wins.
+// When speaker stops, mic released for EVERY participant.
 // ══════════════════════════════════════════════════════════
 
 async function toggleMicrophone() {
   if (!gdActive) return;
 
   if (isSpeaking) {
+    // Current speaker clicks "Stop Speaking"
+    const micBtn = document.getElementById('micBtn');
+    if (micBtn) {
+      micBtn.disabled = true;
+      micBtn.textContent = 'Releasing...';
+    }
     stopSpeaking(false);
   } else {
-    await startSpeaking();
+    // Participant requests the floor (first-come-first-served)
+    const micBtn = document.getElementById('micBtn');
+    if (micBtn) {
+      micBtn.disabled = true;
+      micBtn.textContent = 'Requesting...';
+    }
+    const micLabel = document.getElementById('micLabel');
+    if (micLabel) {
+      micLabel.textContent = 'Requesting microphone...';
+    }
+    // Server locks mic for first request to reach it
+    socket.emit('request-mic', roomData.code);
   }
 }
 
-async function startSpeaking() {
+// ── Mic Acquired: Server granted the floor ─────────────────
+async function handleMicAcquired({ userId, username, socketId }) {
+  const isMe = (socketId === socket.id) || (userId === currentUser?.id);
+  const micBtn = document.getElementById('micBtn');
+  const micLabel = document.getElementById('micLabel');
+  const banner = document.getElementById('speakerStatusBanner');
+  const bannerText = document.getElementById('speakerStatusText');
+  const bannerIcon = document.getElementById('speakerBannerIcon');
+
+  if (isMe) {
+    // This participant won the speaking turn!
+    isSpeaking = true;
+
+    if (banner) {
+      banner.className = 'speaker-banner speaking';
+    }
+    if (bannerIcon) bannerIcon.textContent = '🔴';
+    if (bannerText) bannerText.textContent = 'You have the microphone — Speak now, tap Stop Speaking when done';
+
+    if (micBtn) {
+      micBtn.disabled = false;
+      micBtn.classList.remove('locked');
+      micBtn.classList.add('active');
+      micBtn.textContent = 'Stop Speaking';
+      micBtn.title = 'Click to finish speaking and release microphone';
+    }
+    if (micLabel) {
+      micLabel.textContent = 'You are speaking — tap Stop Speaking when done';
+      micLabel.classList.add('recording');
+    }
+
+    // Start recording audio and speech recognition locally
+    await startAudioRecording();
+  } else {
+    // Another participant acquired the floor -> Disable Speak for all others
+    if (isSpeaking) {
+      stopSpeaking(true);
+    }
+    isSpeaking = false;
+
+    if (banner) {
+      banner.className = 'speaker-banner occupied';
+    }
+    if (bannerIcon) bannerIcon.textContent = '🎙️';
+    if (bannerText) bannerText.textContent = `${username} has the microphone (Speaking...)`;
+
+    if (micBtn) {
+      micBtn.disabled = true;
+      micBtn.classList.remove('active');
+      micBtn.classList.add('locked');
+      micBtn.textContent = 'Mic In Use';
+      micBtn.title = `${username} is currently speaking`;
+    }
+    if (micLabel) {
+      micLabel.textContent = `${username} is speaking...`;
+      micLabel.classList.remove('recording');
+    }
+
+    const liveBox = document.getElementById('liveTranscriptContainer');
+    if (liveBox) liveBox.classList.add('hidden');
+  }
+}
+
+// ── Mic Released: Floor is open for EVERY participant ──────
+function handleMicReleased(previousSpeakerUsername) {
+  // If we were speaking, stop local recording
+  if (isSpeaking) {
+    stopLocalAudioRecording();
+    isSpeaking = false;
+  }
+
+  const micBtn = document.getElementById('micBtn');
+  const micLabel = document.getElementById('micLabel');
+  const banner = document.getElementById('speakerStatusBanner');
+  const bannerText = document.getElementById('speakerStatusText');
+  const bannerIcon = document.getElementById('speakerBannerIcon');
+
+  if (banner) {
+    banner.className = 'speaker-banner free';
+  }
+  if (bannerIcon) bannerIcon.textContent = '🟢';
+  if (bannerText) {
+    bannerText.textContent = previousSpeakerUsername
+      ? `Microphone available (${previousSpeakerUsername} finished) — Click Speak to take the floor`
+      : 'Microphone available — Click Speak to take the floor';
+  }
+
+  // Speak button is enabled again for EVERY participant, including previous speaker
+  if (micBtn) {
+    micBtn.disabled = false;
+    micBtn.classList.remove('active', 'locked');
+    micBtn.textContent = 'Speak';
+    micBtn.title = 'Click to speak';
+  }
+  if (micLabel) {
+    micLabel.textContent = 'Microphone free — click Speak to take the floor';
+    micLabel.classList.remove('recording');
+  }
+
+  const liveBox = document.getElementById('liveTranscriptContainer');
+  if (liveBox) {
+    setTimeout(() => {
+      if (!isSpeaking) liveBox.classList.add('hidden');
+    }, 1500);
+  }
+}
+
+// ── Mic Rejected: Someone else clicked first ───────────────
+function handleMicRejected({ speakerUsername, message }) {
+  showToast(message || `${speakerUsername || 'Another participant'} already took the microphone.`, 'warning');
+
+  const micBtn = document.getElementById('micBtn');
+  const micLabel = document.getElementById('micLabel');
+  const banner = document.getElementById('speakerStatusBanner');
+  const bannerText = document.getElementById('speakerStatusText');
+  const bannerIcon = document.getElementById('speakerBannerIcon');
+
+  if (banner) {
+    banner.className = 'speaker-banner occupied';
+  }
+  if (bannerIcon) bannerIcon.textContent = '🎙️';
+  if (bannerText) {
+    bannerText.textContent = speakerUsername
+      ? `${speakerUsername} has the microphone (Speaking...)`
+      : 'Microphone currently in use';
+  }
+
+  if (micBtn) {
+    micBtn.disabled = true;
+    micBtn.classList.remove('active');
+    micBtn.classList.add('locked');
+    micBtn.textContent = 'Mic In Use';
+  }
+  if (micLabel) {
+    micLabel.textContent = speakerUsername ? `${speakerUsername} is speaking...` : 'Microphone in use';
+    micLabel.classList.remove('recording');
+  }
+}
+
+// ── Audio Recording & Speech Recognition (Activated on Lock Win)
+async function startAudioRecording() {
   try {
-    // Request mic permission only on first use
     if (!audioStream) {
       audioStream = await navigator.mediaDevices.getUserMedia({
         audio: {
@@ -277,7 +448,6 @@ async function startSpeaking() {
       });
     }
 
-    // Create a new MediaRecorder for this contribution
     const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
       ? 'audio/webm;codecs=opus'
       : 'audio/webm';
@@ -285,7 +455,6 @@ async function startSpeaking() {
     mediaRecorder = new MediaRecorder(audioStream, { mimeType });
     const chunks = [];
 
-    // Initialize contribution tracking object
     recognizedTranscript = '';
     currentContribution = {
       startTime: new Date().toISOString(),
@@ -348,28 +517,17 @@ async function startSpeaking() {
 
         speechRecognition.start();
       } catch (recErr) {
-        console.warn('SpeechRecognition initialization error:', recErr);
+        console.warn('SpeechRecognition error:', recErr);
       }
     }
 
-    mediaRecorder.start(1000); // Collect audio data
-    isSpeaking = true;
+    mediaRecorder.start(1000);
 
-    // Update UI
-    const micBtn = document.getElementById('micBtn');
-    micBtn.classList.add('active');
-    micBtn.textContent = 'STOP';
-    document.getElementById('micLabel').textContent = 'Tap to stop';
-    document.getElementById('micLabel').classList.add('recording');
-
-    // Show live transcript container
+    // Show live transcript box
     const liveBox = document.getElementById('liveTranscriptContainer');
     const liveText = document.getElementById('liveTranscriptText');
     if (liveBox) liveBox.classList.remove('hidden');
-    if (liveText) liveText.textContent = 'Listening to speech...';
-
-    // Notify other participants
-    socket.emit('start-speaking', roomData.code);
+    if (liveText) liveText.textContent = 'Listening to your speech...';
 
   } catch (err) {
     if (err.name === 'NotAllowedError') {
@@ -377,6 +535,18 @@ async function startSpeaking() {
     } else {
       showToast('Could not access microphone: ' + err.message, 'error');
     }
+    // Release mic if local recording failed
+    stopSpeaking(true);
+  }
+}
+
+function stopLocalAudioRecording() {
+  if (speechRecognition) {
+    try { speechRecognition.stop(); } catch (_) {}
+    speechRecognition = null;
+  }
+  if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+    try { mediaRecorder.stop(); } catch (_) {}
   }
 }
 
@@ -384,23 +554,10 @@ function stopSpeaking(forced) {
   if (!isSpeaking && !forced) return;
 
   isSpeaking = false;
+  stopLocalAudioRecording();
 
-  // Stop speech recognition
-  if (speechRecognition) {
-    try {
-      speechRecognition.stop();
-    } catch (_) {}
-    speechRecognition = null;
-  }
-
-  // Preserve contrib reference for async upload
   const contrib = currentContribution;
   currentContribution = null;
-
-  // Stop MediaRecorder
-  if (mediaRecorder && mediaRecorder.state !== 'inactive') {
-    try { mediaRecorder.stop(); } catch (_) {}
-  }
 
   if (contrib) {
     contrib.endTime = new Date().toISOString();
@@ -409,18 +566,20 @@ function stopSpeaking(forced) {
     contrib.duration = Math.max(0.5, (end - start) / 1000);
     const finalTranscript = (contrib.transcript || recognizedTranscript || '').trim();
 
-    // Send contribution data with transcript to server via socket
-    socket.emit('stop-speaking', {
-      roomCode: roomData.code,
-      contributionData: {
-        startTime: contrib.startTime,
-        endTime: contrib.endTime,
-        duration: contrib.duration,
-        transcript: finalTranscript,
-      },
-    });
+    // Release microphone lock on server and record contribution
+    if (socket) {
+      socket.emit('release-mic', {
+        roomCode: roomData.code,
+        contributionData: {
+          startTime: contrib.startTime,
+          endTime: contrib.endTime,
+          duration: contrib.duration,
+          transcript: finalTranscript,
+        },
+      });
+    }
 
-    // Upload audio blob once MediaRecorder produces it
+    // Asynchronously upload audio recording
     contrib.onAudioReady = async (audioBlob) => {
       try {
         if (!roomData?.sessionId) return;
@@ -447,15 +606,16 @@ function stopSpeaking(forced) {
     };
   }
 
-  // Update UI
+  // Update UI to releasing state until server confirms mic-released
   const micBtn = document.getElementById('micBtn');
   if (micBtn) {
     micBtn.classList.remove('active');
-    micBtn.textContent = 'MIC';
+    micBtn.disabled = true;
+    micBtn.textContent = 'Speak';
   }
   const micLabel = document.getElementById('micLabel');
   if (micLabel) {
-    micLabel.textContent = 'Tap to speak';
+    micLabel.textContent = 'Releasing microphone...';
     micLabel.classList.remove('recording');
   }
 
@@ -463,7 +623,7 @@ function stopSpeaking(forced) {
   if (liveBox) {
     setTimeout(() => {
       if (!isSpeaking) liveBox.classList.add('hidden');
-    }, 2500);
+    }, 2000);
   }
 }
 

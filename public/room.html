@@ -95,10 +95,16 @@
           <!-- Participants -->
           <div class="participant-list" id="gdParticipants"></div>
 
+          <!-- Speaker Status Banner (First-come-first-served) -->
+          <div id="speakerStatusBanner" class="speaker-banner free">
+            <span class="speaker-banner-icon" id="speakerBannerIcon">🟢</span>
+            <span id="speakerStatusText" class="speaker-banner-text">Microphone available — Click Speak to take the floor</span>
+          </div>
+
           <!-- Microphone -->
           <div class="mic-section">
-            <button class="mic-btn" id="micBtn" title="Tap to speak / stop">MIC</button>
-            <div class="mic-label" id="micLabel">Tap to speak</div>
+            <button class="mic-btn" id="micBtn" title="Click to speak">Speak</button>
+            <div class="mic-label" id="micLabel">Microphone free — click to speak</div>
             <div id="liveTranscriptContainer" class="live-transcript-box hidden">
               <div class="live-transcript-header">
                 <span class="live-transcript-pulse"></span>

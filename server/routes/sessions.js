@@ -74,10 +74,80 @@ router.get('/:id', auth, async (req, res) => {
       ORDER BY contribution_order ASC
     `).all(req.params.id, req.user.id);
 
-    // Parse JSON fields in evaluation
+    // Parse JSON fields in evaluation and format 8 criteria
     if (evaluation) {
       try { evaluation.strengths = JSON.parse(evaluation.strengths); } catch { evaluation.strengths = []; }
       try { evaluation.improvements = JSON.parse(evaluation.improvements); } catch { evaluation.improvements = []; }
+
+      const contentQuality = Math.round(Number(evaluation.content_score) || 0);
+      const communication = Math.round(Number(evaluation.communication_score) || 0);
+      const participation = Math.round(Number(evaluation.participation_score) || 0);
+      const teamInteraction = Math.round(Number(evaluation.collaboration_score) || 0);
+      const leadership = Math.round(Number(evaluation.leadership_score) || 0);
+      const relevance = evaluation.relevance_score != null
+        ? Math.round(Number(evaluation.relevance_score))
+        : contentQuality;
+      const confidence = evaluation.confidence_score != null
+        ? Math.round(Number(evaluation.confidence_score))
+        : Math.round(((communication + leadership) / 2));
+      const overall = Math.round(Number(evaluation.overall_score) || 0);
+
+      evaluation.content_quality_score = contentQuality;
+      evaluation.relevance_score = relevance;
+      evaluation.team_interaction_score = teamInteraction;
+      evaluation.confidence_score = confidence;
+      evaluation.overall_performance_score = overall;
+
+      evaluation.criteria_list = [
+        {
+          key: 'content_quality',
+          label: 'Content Quality',
+          description: 'Relevance, clarity, reasoning, examples and understanding of the topic',
+          score: contentQuality,
+        },
+        {
+          key: 'communication',
+          label: 'Communication',
+          description: 'Clarity, organization and effectiveness of expression',
+          score: communication,
+        },
+        {
+          key: 'participation',
+          label: 'Participation',
+          description: 'Meaningful contribution and consistency throughout the GD',
+          score: participation,
+        },
+        {
+          key: 'relevance',
+          label: 'Relevance',
+          description: 'Whether the participant stays connected to the GD topic',
+          score: relevance,
+        },
+        {
+          key: 'team_interaction',
+          label: 'Team Interaction',
+          description: "Ability to respond to and build upon other participants' points",
+          score: teamInteraction,
+        },
+        {
+          key: 'confidence',
+          label: 'Confidence',
+          description: 'Delivery characteristics observable from the recorded contribution',
+          score: confidence,
+        },
+        {
+          key: 'leadership',
+          label: 'Leadership',
+          description: 'Initiative, constructive direction and ability to move discussion forward',
+          score: leadership,
+        },
+        {
+          key: 'overall_performance',
+          label: 'Overall Performance',
+          description: 'Overall quality based on the above evidence',
+          score: overall,
+        },
+      ];
     }
 
     res.json({ session, evaluation, contributions });

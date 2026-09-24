@@ -4,7 +4,14 @@ const { db } = require('../db');
 const { evaluateParticipant } = require('../services/evaluationService');
 
 // In-memory state for active rooms
-const activeRooms = new Map(); // roomCode -> { participants: Map<socketId, userInfo>, session: {...}, speakingUser: null }
+// roomCode -> {
+//   participants: Map<socketId, userInfo>,
+//   session: {...},
+//   currentSpeaker: null | { socketId, userId, username, startTime },
+//   gdStarted: boolean,
+//   startTime: timestamp
+// }
+const activeRooms = new Map();
 
 function initializeSocket(io) {
   // Auth middleware for Socket.IO
@@ -38,7 +45,7 @@ function initializeSocket(io) {
           activeRooms.set(roomCode, {
             participants: new Map(),
             session: null,
-            speakingUser: null,
+            currentSpeaker: null,
             gdStarted: false,
             startTime: null,
           });
@@ -48,7 +55,7 @@ function initializeSocket(io) {
         roomState.participants.set(socket.id, {
           id: socket.user.id,
           username: socket.user.username,
-          status: 'ready',
+          status: (roomState.currentSpeaker && roomState.currentSpeaker.socketId === socket.id) ? 'speaking' : 'ready',
         });
 
         // Broadcast updated participant list
@@ -60,6 +67,18 @@ function initializeSocket(io) {
             startTime: roomState.startTime,
             sessionId: roomState.session?.id,
           });
+
+          // Sync current microphone state
+          if (roomState.currentSpeaker) {
+            socket.emit('mic-acquired', {
+              userId: roomState.currentSpeaker.userId,
+              username: roomState.currentSpeaker.username,
+              socketId: roomState.currentSpeaker.socketId,
+              startTime: roomState.currentSpeaker.startTime,
+            });
+          } else {
+            socket.emit('mic-released');
+          }
         }
       } catch (err) {
         console.error('Join room socket error:', err);
@@ -89,12 +108,22 @@ function initializeSocket(io) {
         roomState.gdStarted = true;
         roomState.startTime = now;
         roomState.session = { id: result.lastInsertRowid, startTime: now };
+        roomState.currentSpeaker = null; // No one gets the mic automatically
+
+        // Reset participant statuses to ready
+        for (const [, p] of roomState.participants) {
+          p.status = 'ready';
+        }
 
         io.to(roomCode).emit('gd-started', {
           startTime: now,
           sessionId: result.lastInsertRowid,
         });
 
+        // Enable speak button for EVERY participant initially
+        io.to(roomCode).emit('mic-released');
+
+        broadcastParticipants(io, roomCode);
         console.log(`🎙️ GD started in room ${roomCode}`);
       } catch (err) {
         console.error('Start GD error:', err);
@@ -102,45 +131,98 @@ function initializeSocket(io) {
       }
     });
 
-    // ── Start Speaking ────────────────────────────────
-    socket.on('start-speaking', (roomCode) => {
+    // ── First-Come-First-Served Microphone Request ────
+    socket.on('request-mic', (roomCode) => {
       const roomState = activeRooms.get(roomCode);
       if (!roomState || !roomState.gdStarted) return;
 
-      // Update speaking status
+      // Lock check: if someone is already speaking, reject immediately
+      if (roomState.currentSpeaker) {
+        socket.emit('mic-rejected', {
+          speakerUsername: roomState.currentSpeaker.username,
+          message: `${roomState.currentSpeaker.username} is currently speaking.`,
+        });
+        return;
+      }
+
+      // First-come gets the lock
+      const now = new Date().toISOString();
+      roomState.currentSpeaker = {
+        socketId: socket.id,
+        userId: socket.user.id,
+        username: socket.user.username,
+        startTime: now,
+      };
+
       const participant = roomState.participants.get(socket.id);
       if (participant) {
         participant.status = 'speaking';
-        participant.speakStartTime = new Date().toISOString();
-        roomState.speakingUser = socket.id;
+        participant.speakStartTime = now;
       }
 
-      io.to(roomCode).emit('speaking-update', {
+      // Immediately notify all participants: mic acquired by this user
+      io.to(roomCode).emit('mic-acquired', {
         userId: socket.user.id,
         username: socket.user.username,
-        status: 'speaking',
+        socketId: socket.id,
+        startTime: now,
       });
 
       broadcastParticipants(io, roomCode);
     });
 
-    // ── Stop Speaking ─────────────────────────────────
-    socket.on('stop-speaking', async ({ roomCode, contributionData }) => {
+    // Backward compatibility alias for start-speaking
+    socket.on('start-speaking', (roomCode) => {
       const roomState = activeRooms.get(roomCode);
       if (!roomState || !roomState.gdStarted) return;
+
+      if (!roomState.currentSpeaker) {
+        const now = new Date().toISOString();
+        roomState.currentSpeaker = {
+          socketId: socket.id,
+          userId: socket.user.id,
+          username: socket.user.username,
+          startTime: now,
+        };
+
+        const participant = roomState.participants.get(socket.id);
+        if (participant) {
+          participant.status = 'speaking';
+          participant.speakStartTime = now;
+        }
+
+        io.to(roomCode).emit('mic-acquired', {
+          userId: socket.user.id,
+          username: socket.user.username,
+          socketId: socket.id,
+          startTime: now,
+        });
+
+        broadcastParticipants(io, roomCode);
+      }
+    });
+
+    // ── Release Microphone / Stop Speaking ────────────
+    async function handleReleaseMic({ roomCode, contributionData }) {
+      const roomState = activeRooms.get(roomCode);
+      if (!roomState || !roomState.gdStarted) return;
+
+      // Only the current speaker can release the microphone
+      if (!roomState.currentSpeaker || roomState.currentSpeaker.socketId !== socket.id) {
+        return;
+      }
+
+      const prevSpeaker = roomState.currentSpeaker;
+      roomState.currentSpeaker = null;
 
       const participant = roomState.participants.get(socket.id);
       if (participant) {
         participant.status = 'ready';
-        if (roomState.speakingUser === socket.id) {
-          roomState.speakingUser = null;
-        }
       }
 
       // Save contribution metadata to DB
       if (roomState.session && contributionData) {
         try {
-          // Count existing contributions for ordering
           const countResult = await db.prepare(
             'SELECT COUNT(*) as count FROM contributions WHERE session_id = ? AND user_id = ?'
           ).get(roomState.session.id, socket.user.id);
@@ -150,9 +232,9 @@ function initializeSocket(io) {
           ).run(
             roomState.session.id,
             socket.user.id,
-            contributionData.startTime,
-            contributionData.endTime,
-            contributionData.duration,
+            contributionData.startTime || prevSpeaker.startTime,
+            contributionData.endTime || new Date().toISOString(),
+            contributionData.duration || 0,
             contributionData.transcript || null,
             (parseInt(countResult?.count, 10) || 0) + 1
           );
@@ -161,14 +243,17 @@ function initializeSocket(io) {
         }
       }
 
-      io.to(roomCode).emit('speaking-update', {
-        userId: socket.user.id,
-        username: socket.user.username,
-        status: 'ready',
+      // Immediately release microphone lock for EVERY participant
+      io.to(roomCode).emit('mic-released', {
+        previousSpeakerUsername: prevSpeaker.username,
+        userId: prevSpeaker.userId,
       });
 
       broadcastParticipants(io, roomCode);
-    });
+    }
+
+    socket.on('release-mic', (data) => handleReleaseMic(data));
+    socket.on('stop-speaking', (data) => handleReleaseMic(data));
 
     // ── End GD ────────────────────────────────────────
     socket.on('end-gd', async (roomCode) => {
@@ -180,43 +265,39 @@ function initializeSocket(io) {
         const roomState = activeRooms.get(roomCode);
         if (!roomState || !roomState.gdStarted || !roomState.session) return;
 
-        const now = new Date().toISOString();
-        const startTime = new Date(roomState.session.startTime);
-        const endTime = new Date(now);
-        const durationSec = (endTime - startTime) / 1000;
+        // Notify room evaluation is starting
+        io.to(roomCode).emit('gd-ending');
 
-        // Update session
+        // End session in DB
+        const now = new Date().toISOString();
+        const durationSec = (new Date(now) - new Date(roomState.startTime)) / 1000;
+
         await db.prepare(
           'UPDATE sessions SET ended_at = ?, duration = ? WHERE id = ?'
         ).run(now, Math.round(durationSec), roomState.session.id);
 
-        // Update room status
         await db.prepare("UPDATE rooms SET status = 'ended' WHERE id = ?").run(room.id);
 
-        // Notify all participants that evaluation is in progress
-        io.to(roomCode).emit('gd-ending', { message: 'Evaluating performance...' });
-
-        // Evaluate each participant individually
+        // Fetch participants for evaluation
         const participants = await db.prepare(`
-          SELECT DISTINCT rp.user_id, u.username
+          SELECT u.id as user_id, u.username
           FROM room_participants rp
           JOIN users u ON rp.user_id = u.id
           WHERE rp.room_id = ?
         `).all(room.id);
 
+        // Run AI evaluation for each participant
         const evaluationPromises = participants.map(async (participant) => {
           try {
-            // Get this participant's contributions
             const contributions = await db.prepare(
-              'SELECT * FROM contributions WHERE session_id = ? AND user_id = ? ORDER BY contribution_order ASC'
+              'SELECT transcript, duration, start_time, contribution_order FROM contributions WHERE session_id = ? AND user_id = ? ORDER BY start_time ASC'
             ).all(roomState.session.id, participant.user_id);
 
-            const contributionDurations = contributions.map(c => c.duration || 0);
-            const totalSpeakingTime = contributionDurations.reduce((a, b) => a + b, 0);
-            const contributionTimestamps = contributions.map(c => {
-              const cs = new Date(c.start_time);
-              return (cs - startTime) / 1000;
-            });
+            const totalSpeakingTime = contributions.reduce((sum, c) => sum + (c.duration || 0), 0);
+            const durations = contributions.map(c => c.duration || 0);
+            const timestamps = contributions.map(c =>
+              Math.max(0, (new Date(c.start_time) - new Date(roomState.startTime)) / 1000)
+            );
 
             const evalData = {
               username: participant.username,
@@ -225,8 +306,8 @@ function initializeSocket(io) {
               contributionCount: contributions.length,
               totalSpeakingTime,
               discussionDuration: durationSec,
-              contributionDurations,
-              contributionTimestamps,
+              contributionDurations: durations,
+              contributionTimestamps: timestamps,
               contributions: contributions.map(c => ({
                 order: c.contribution_order,
                 duration: c.duration || 0,
@@ -236,7 +317,7 @@ function initializeSocket(io) {
 
             const evaluation = await evaluateParticipant(evalData);
 
-            // Store evaluation
+            // Store evaluation in DB
             await db.prepare(`
               INSERT OR REPLACE INTO evaluations
               (session_id, user_id, overall_score, communication_score, content_score,
@@ -248,9 +329,9 @@ function initializeSocket(io) {
               participant.user_id,
               evaluation.overall_score,
               evaluation.communication_score,
-              evaluation.content_score,
+              evaluation.content_quality_score, // matches content_score
               evaluation.participation_score,
-              evaluation.collaboration_score,
+              evaluation.team_interaction_score, // matches collaboration_score
               evaluation.leadership_score,
               JSON.stringify(evaluation.strengths),
               JSON.stringify(evaluation.improvements),
@@ -275,7 +356,7 @@ function initializeSocket(io) {
         // Cleanup
         roomState.gdStarted = false;
         roomState.session = null;
-        roomState.speakingUser = null;
+        roomState.currentSpeaker = null;
 
         console.log(`🏁 GD ended in room ${roomCode}`);
       } catch (err) {
@@ -291,10 +372,17 @@ function initializeSocket(io) {
       if (socket.roomCode) {
         const roomState = activeRooms.get(socket.roomCode);
         if (roomState) {
-          roomState.participants.delete(socket.id);
-          if (roomState.speakingUser === socket.id) {
-            roomState.speakingUser = null;
+          // If the disconnected user was holding the microphone, release it immediately!
+          if (roomState.currentSpeaker && roomState.currentSpeaker.socketId === socket.id) {
+            const prevSpeaker = roomState.currentSpeaker;
+            roomState.currentSpeaker = null;
+            io.to(socket.roomCode).emit('mic-released', {
+              previousSpeakerUsername: prevSpeaker.username,
+              userId: prevSpeaker.userId,
+            });
           }
+
+          roomState.participants.delete(socket.id);
           broadcastParticipants(io, socket.roomCode);
 
           if (roomState.participants.size === 0) {
@@ -310,10 +398,16 @@ function initializeSocket(io) {
 
       const roomState = activeRooms.get(roomCode);
       if (roomState) {
-        roomState.participants.delete(socket.id);
-        if (roomState.speakingUser === socket.id) {
-          roomState.speakingUser = null;
+        if (roomState.currentSpeaker && roomState.currentSpeaker.socketId === socket.id) {
+          const prevSpeaker = roomState.currentSpeaker;
+          roomState.currentSpeaker = null;
+          io.to(roomCode).emit('mic-released', {
+            previousSpeakerUsername: prevSpeaker.username,
+            userId: prevSpeaker.userId,
+          });
         }
+
+        roomState.participants.delete(socket.id);
         broadcastParticipants(io, roomCode);
       }
 

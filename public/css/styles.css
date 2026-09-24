@@ -1178,6 +1178,72 @@ select.form-input {
   border-color: #a93226;
 }
 
+/* Disabled & locked state for first-come-first-served room mic */
+.mic-btn:disabled,
+.mic-btn.locked {
+  background: var(--bg-muted);
+  border-color: var(--border);
+  color: var(--text-tertiary);
+  cursor: not-allowed;
+  box-shadow: none;
+  opacity: 0.7;
+}
+
+.mic-btn:disabled:hover,
+.mic-btn.locked:hover {
+  border-color: var(--border);
+  color: var(--text-tertiary);
+  box-shadow: none;
+}
+
+/* Speaker Status Banner */
+.speaker-banner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s-2);
+  padding: var(--s-3) var(--s-5);
+  border-radius: var(--r-full);
+  font-size: 0.9375rem;
+  font-weight: 600;
+  margin-bottom: var(--s-6);
+  transition: all var(--t-base);
+  text-align: center;
+  box-shadow: var(--shadow-xs);
+}
+
+.speaker-banner.free {
+  background: var(--success-bg);
+  color: var(--success);
+  border: 1px solid rgba(26, 127, 75, 0.25);
+}
+
+.speaker-banner.occupied {
+  background: var(--warning-bg);
+  color: var(--warning);
+  border: 1px solid rgba(180, 83, 9, 0.3);
+  animation: pulse-amber 2s infinite;
+}
+
+.speaker-banner.speaking {
+  background: var(--danger-bg);
+  color: var(--danger);
+  border: 1px solid rgba(192, 57, 43, 0.35);
+  animation: pulse-red-banner 1.5s infinite;
+}
+
+@keyframes pulse-amber {
+  0% { box-shadow: 0 0 0 0 rgba(180, 83, 9, 0.3); }
+  70% { box-shadow: 0 0 0 6px rgba(180, 83, 9, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(180, 83, 9, 0); }
+}
+
+@keyframes pulse-red-banner {
+  0% { box-shadow: 0 0 0 0 rgba(192, 57, 43, 0.35); }
+  70% { box-shadow: 0 0 0 6px rgba(192, 57, 43, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(192, 57, 43, 0); }
+}
+
 .mic-label {
   font-size: 0.875rem;
   font-weight: 600;
@@ -1352,21 +1418,53 @@ select.form-input {
   border: 1px solid var(--border);
   border-radius: var(--r-lg);
   padding: var(--s-5);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  transition: transform var(--t-base), box-shadow var(--t-base);
+}
+
+.score-category:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-sm);
+  border-color: var(--brand-muted);
+}
+
+.score-category-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s-2);
+  margin-bottom: var(--s-1);
 }
 
 .score-category-name {
-  font-size: 0.8125rem;
-  font-weight: 600;
-  color: var(--text-secondary);
-  margin-bottom: var(--s-3);
-  text-transform: capitalize;
+  font-size: 0.9375rem;
+  font-weight: 700;
+  color: var(--text-primary);
 }
 
 .score-category-value {
-  font-size: 1.5rem;
+  font-size: 1.375rem;
   font-weight: 800;
   color: var(--text-primary);
+  display: flex;
+  align-items: baseline;
+  gap: 2px;
+}
+
+.score-category-max {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--text-tertiary);
+}
+
+.score-category-desc {
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+  line-height: 1.45;
   margin-bottom: var(--s-3);
+  flex: 1;
 }
 
 .score-bar-track {
@@ -1382,6 +1480,12 @@ select.form-input {
   background: var(--brand);
   transition: width 600ms ease;
 }
+
+/* Score rating color indicators */
+.score-excellent { color: #059669; }
+.score-good      { color: #2563eb; }
+.score-average   { color: #d97706; }
+.score-poor      { color: #dc2626; }
 
 /* Feedback sections */
 .feedback-section {

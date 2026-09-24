@@ -44,21 +44,60 @@ async function loadResult(sessionId) {
     const scoreVal = Math.round(evaluation.overall_score || 0);
     document.getElementById('overallScore').textContent = scoreVal;
 
-    // Score breakdown
-    const categories = [
-      { label: 'Communication',  score: evaluation.communication_score },
-      { label: 'Content Quality', score: evaluation.content_score },
-      { label: 'Participation',  score: evaluation.participation_score },
-      { label: 'Collaboration',  score: evaluation.collaboration_score },
-      { label: 'Leadership',     score: evaluation.leadership_score },
+    // Score breakdown: 8 standardized GD criteria
+    const criteria = evaluation.criteria_list || [
+      {
+        label: 'Content Quality',
+        description: 'Relevance, clarity, reasoning, examples and understanding of the topic',
+        score: evaluation.content_quality_score ?? evaluation.content_score ?? 0,
+      },
+      {
+        label: 'Communication',
+        description: 'Clarity, organization and effectiveness of expression',
+        score: evaluation.communication_score ?? 0,
+      },
+      {
+        label: 'Participation',
+        description: 'Meaningful contribution and consistency throughout the GD',
+        score: evaluation.participation_score ?? 0,
+      },
+      {
+        label: 'Relevance',
+        description: 'Whether the participant stays connected to the GD topic',
+        score: evaluation.relevance_score ?? evaluation.content_score ?? 0,
+      },
+      {
+        label: 'Team Interaction',
+        description: "Ability to respond to and build upon other participants' points",
+        score: evaluation.team_interaction_score ?? evaluation.collaboration_score ?? 0,
+      },
+      {
+        label: 'Confidence',
+        description: 'Delivery characteristics observable from the recorded contribution',
+        score: evaluation.confidence_score ?? Math.round(((evaluation.communication_score || 0) + (evaluation.leadership_score || 0)) / 2),
+      },
+      {
+        label: 'Leadership',
+        description: 'Initiative, constructive direction and ability to move discussion forward',
+        score: evaluation.leadership_score ?? 0,
+      },
+      {
+        label: 'Overall Performance',
+        description: 'Overall quality based on the above evidence',
+        score: evaluation.overall_performance_score ?? evaluation.overall_score ?? 0,
+      },
     ];
 
-    document.getElementById('scoreBreakdown').innerHTML = categories.map(c => {
+    document.getElementById('scoreBreakdown').innerHTML = criteria.map(c => {
       const pct = Math.round(c.score || 0);
+      const desc = c.description || c.desc || '';
       return `
         <div class="score-category">
-          <div class="score-category-name">${c.label}</div>
-          <div class="score-category-value ${getScoreClass(pct)}">${pct}</div>
+          <div class="score-category-header">
+            <div class="score-category-name">${escapeHtml(c.label)}</div>
+            <div class="score-category-value ${getScoreClass(pct)}">${pct} <span class="score-category-max">/100</span></div>
+          </div>
+          <div class="score-category-desc">${escapeHtml(desc)}</div>
           <div class="score-bar-track">
             <div class="score-bar-fill" style="width:0%" data-width="${pct}%"></div>
           </div>
