@@ -4,6 +4,7 @@
    Exposes a unified API: db.prepare(sql).get/all/run(params)
    ══════════════════════════════════════════════════════════ */
 
+require('dotenv').config();
 const path = require('path');
 
 const DATABASE_URL = process.env.DATABASE_URL;
@@ -134,6 +135,9 @@ async function initialize() {
       console.log('✅ PostgreSQL connected');
     } catch (err) {
       console.error('❌ PostgreSQL connection failed:', err.message);
+      if (err.message.includes('ENOTFOUND') || err.message.includes('timeout')) {
+        console.error('💡 TIP: Use the Supabase Connection Pooler URI (port 6543) for IPv4 cloud hosts like Render.');
+      }
       process.exit(1);
     }
   } else {
