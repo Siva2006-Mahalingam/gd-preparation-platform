@@ -6,7 +6,7 @@ const path = require('path');
 const fs = require('fs');
 
 const config = require('./config');
-const { initialize, isPostgres } = require('./db');
+const { initialize, getIsPostgres, getDbError } = require('./db');
 const { initializeSocket } = require('./socket/handler');
 
 // Routes
@@ -40,7 +40,8 @@ if (!fs.existsSync(uploadsDir)) {
 app.get('/api/health', (req, res) => {
   res.json({
     status: 'ok',
-    database: isPostgres ? 'postgresql' : 'sqlite',
+    database: getIsPostgres() ? 'postgresql' : 'sqlite',
+    db_error: getDbError(),
     time: new Date().toISOString(),
   });
 });
