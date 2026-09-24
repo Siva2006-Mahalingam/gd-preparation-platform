@@ -3,7 +3,12 @@
    Auth helpers, API wrapper, toasts, navigation
    ════════════════════════════════════════════════════════ */
 
-const API_BASE = window.location.origin + '/api';
+const BACKEND_URL = window.BACKEND_URL || (
+  window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+    ? window.location.origin
+    : (localStorage.getItem('gd_backend_url') || 'https://gd-preparation-platform.onrender.com')
+);
+const API_BASE = BACKEND_URL + '/api';
 
 // ── Auth Helpers ────────────────────────────────────────
 function getToken() {

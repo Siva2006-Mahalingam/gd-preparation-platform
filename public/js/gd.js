@@ -63,7 +63,7 @@ async function loadRoom(code) {
 
 // ── Socket.IO Connection ────────────────────────────────
 function connectSocket(roomCode) {
-  socket = io({
+  socket = io(BACKEND_URL, {
     auth: { token: getToken() },
   });
 
