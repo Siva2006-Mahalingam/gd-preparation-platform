@@ -26,16 +26,16 @@ router.post('/', auth, async (req, res) => {
     // Fetch topic via API
     const topic = await fetchTopic();
 
-    const result = db.prepare(
+    const result = await db.prepare(
       'INSERT INTO rooms (code, name, topic, host_id, is_public, max_participants, status) VALUES (?, ?, ?, ?, ?, ?, ?)'
     ).run(code, name.trim(), topic, req.user.id, isPublic ? 1 : 0, max, 'waiting');
 
     // Add host as participant
-    db.prepare('INSERT INTO room_participants (room_id, user_id) VALUES (?, ?)').run(
+    await db.prepare('INSERT INTO room_participants (room_id, user_id) VALUES (?, ?)').run(
       result.lastInsertRowid, req.user.id
     );
 
-    const room = db.prepare(`
+    const room = await db.prepare(`
       SELECT r.*, u.username as host_username
       FROM rooms r
       JOIN users u ON r.host_id = u.id
@@ -50,9 +50,9 @@ router.post('/', auth, async (req, res) => {
 });
 
 // ── Get Room by Code ────────────────────────────────────
-router.get('/:code', auth, (req, res) => {
+router.get('/:code', auth, async (req, res) => {
   try {
-    const room = db.prepare(`
+    const room = await db.prepare(`
       SELECT r.*, u.username as host_username
       FROM rooms r
       JOIN users u ON r.host_id = u.id
@@ -68,13 +68,14 @@ router.get('/:code', auth, (req, res) => {
     }
 
     // Get participant count
-    const participantCount = db.prepare(
+    const countResult = await db.prepare(
       'SELECT COUNT(*) as count FROM room_participants WHERE room_id = ?'
-    ).get(room.id).count;
+    ).get(room.id);
+    const participantCount = parseInt(countResult?.count, 10) || 0;
 
     if (participantCount >= room.max_participants) {
       // Check if user is already a participant
-      const isParticipant = db.prepare(
+      const isParticipant = await db.prepare(
         'SELECT id FROM room_participants WHERE room_id = ? AND user_id = ?'
       ).get(room.id, req.user.id);
 
@@ -84,7 +85,7 @@ router.get('/:code', auth, (req, res) => {
     }
 
     // Get participants
-    const participants = db.prepare(`
+    const participants = await db.prepare(`
       SELECT u.id, u.username
       FROM room_participants rp
       JOIN users u ON rp.user_id = u.id
@@ -105,9 +106,9 @@ router.get('/:code', auth, (req, res) => {
 });
 
 // ── List Public Rooms ───────────────────────────────────
-router.get('/public/list', auth, (req, res) => {
+router.get('/public/list', auth, async (req, res) => {
   try {
-    const rooms = db.prepare(`
+    const rooms = await db.prepare(`
       SELECT r.*, u.username as host_username,
         (SELECT COUNT(*) FROM room_participants WHERE room_id = r.id) as participant_count
       FROM rooms r
@@ -126,7 +127,7 @@ router.get('/public/list', auth, (req, res) => {
 // ── Join Room ───────────────────────────────────────────
 router.post('/:code/join', auth, async (req, res) => {
   try {
-    const room = db.prepare(`
+    const room = await db.prepare(`
       SELECT r.*, u.username as host_username
       FROM rooms r
       JOIN users u ON r.host_id = u.id
@@ -142,20 +143,20 @@ router.post('/:code/join', auth, async (req, res) => {
     }
 
     // Check if already a participant
-    const existing = db.prepare(
+    const existing = await db.prepare(
       'SELECT id FROM room_participants WHERE room_id = ? AND user_id = ?'
     ).get(room.id, req.user.id);
 
     if (!existing) {
-      const participantCount = db.prepare(
+      const countResult = await db.prepare(
         'SELECT COUNT(*) as count FROM room_participants WHERE room_id = ?'
-      ).get(room.id).count;
+      ).get(room.id);
 
-      if (participantCount >= room.max_participants) {
+      if ((parseInt(countResult?.count, 10) || 0) >= room.max_participants) {
         return res.status(400).json({ error: 'Room is full' });
       }
 
-      db.prepare('INSERT INTO room_participants (room_id, user_id) VALUES (?, ?)').run(
+      await db.prepare('INSERT INTO room_participants (room_id, user_id) VALUES (?, ?)').run(
         room.id, req.user.id
       );
     }
@@ -163,12 +164,12 @@ router.post('/:code/join', auth, async (req, res) => {
     // If room doesn't have a topic, fetch one
     if (!room.topic) {
       const topic = await fetchTopic();
-      db.prepare('UPDATE rooms SET topic = ? WHERE id = ?').run(topic, room.id);
+      await db.prepare('UPDATE rooms SET topic = ? WHERE id = ?').run(topic, room.id);
       room.topic = topic;
     }
 
     // Get updated participants
-    const participants = db.prepare(`
+    const participants = await db.prepare(`
       SELECT u.id, u.username
       FROM room_participants rp
       JOIN users u ON rp.user_id = u.id

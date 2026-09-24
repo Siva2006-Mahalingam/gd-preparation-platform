@@ -48,17 +48,19 @@ app.get('/', (req, res) => {
 });
 
 // ── Initialize ──────────────────────────────────────────
-initialize();
-initializeSocket(io);
+(async () => {
+  await initialize();
+  initializeSocket(io);
 
-// ── Start Server ────────────────────────────────────────
-server.listen(config.PORT, () => {
-  console.log('');
-  console.log('╔══════════════════════════════════════════╗');
-  console.log('║   GD Preparation Platform                ║');
-  console.log(`║   Running on http://localhost:${config.PORT}        ║`);
-  console.log('╚══════════════════════════════════════════╝');
-  console.log('');
-});
+  // ── Start Server ────────────────────────────────────────
+  server.listen(config.PORT, () => {
+    console.log('');
+    console.log('╔══════════════════════════════════════════╗');
+    console.log('║   GD Preparation Platform                ║');
+    console.log(`║   Running on http://localhost:${config.PORT}        ║`);
+    console.log('╚══════════════════════════════════════════╝');
+    console.log('');
+  });
+})();
 
 module.exports = { app, server, io };

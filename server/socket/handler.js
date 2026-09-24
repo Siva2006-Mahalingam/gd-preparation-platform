@@ -25,71 +25,81 @@ function initializeSocket(io) {
     console.log(`🔌 ${socket.user.username} connected (${socket.id})`);
 
     // ── Join Room ─────────────────────────────────────
-    socket.on('join-room', (roomCode) => {
-      const room = db.prepare('SELECT * FROM rooms WHERE code = ?').get(roomCode);
-      if (!room) return socket.emit('error-msg', 'Room not found');
+    socket.on('join-room', async (roomCode) => {
+      try {
+        const room = await db.prepare('SELECT * FROM rooms WHERE code = ?').get(roomCode);
+        if (!room) return socket.emit('error-msg', 'Room not found');
 
-      socket.join(roomCode);
-      socket.roomCode = roomCode;
+        socket.join(roomCode);
+        socket.roomCode = roomCode;
 
-      // Initialize room state if needed
-      if (!activeRooms.has(roomCode)) {
-        activeRooms.set(roomCode, {
-          participants: new Map(),
-          session: null,
-          speakingUser: null,
-          gdStarted: false,
-          startTime: null,
+        // Initialize room state if needed
+        if (!activeRooms.has(roomCode)) {
+          activeRooms.set(roomCode, {
+            participants: new Map(),
+            session: null,
+            speakingUser: null,
+            gdStarted: false,
+            startTime: null,
+          });
+        }
+
+        const roomState = activeRooms.get(roomCode);
+        roomState.participants.set(socket.id, {
+          id: socket.user.id,
+          username: socket.user.username,
+          status: 'ready',
         });
-      }
 
-      const roomState = activeRooms.get(roomCode);
-      roomState.participants.set(socket.id, {
-        id: socket.user.id,
-        username: socket.user.username,
-        status: 'ready',
-      });
+        // Broadcast updated participant list
+        broadcastParticipants(io, roomCode);
 
-      // Broadcast updated participant list
-      broadcastParticipants(io, roomCode);
-
-      // If GD is already active, notify the joining user
-      if (roomState.gdStarted) {
-        socket.emit('gd-started', {
-          startTime: roomState.startTime,
-          sessionId: roomState.session?.id,
-        });
+        // If GD is already active, notify the joining user
+        if (roomState.gdStarted) {
+          socket.emit('gd-started', {
+            startTime: roomState.startTime,
+            sessionId: roomState.session?.id,
+          });
+        }
+      } catch (err) {
+        console.error('Join room socket error:', err);
+        socket.emit('error-msg', 'Failed to join room');
       }
     });
 
     // ── Start GD ──────────────────────────────────────
-    socket.on('start-gd', (roomCode) => {
-      const room = db.prepare('SELECT * FROM rooms WHERE code = ?').get(roomCode);
-      if (!room) return socket.emit('error-msg', 'Room not found');
-      if (room.host_id !== socket.user.id) return socket.emit('error-msg', 'Only the host can start the GD');
+    socket.on('start-gd', async (roomCode) => {
+      try {
+        const room = await db.prepare('SELECT * FROM rooms WHERE code = ?').get(roomCode);
+        if (!room) return socket.emit('error-msg', 'Room not found');
+        if (room.host_id !== socket.user.id) return socket.emit('error-msg', 'Only the host can start the GD');
 
-      const roomState = activeRooms.get(roomCode);
-      if (!roomState || roomState.gdStarted) return;
+        const roomState = activeRooms.get(roomCode);
+        if (!roomState || roomState.gdStarted) return;
 
-      // Create session in DB
-      const now = new Date().toISOString();
-      const result = db.prepare(
-        'INSERT INTO sessions (room_id, topic, started_at) VALUES (?, ?, ?)'
-      ).run(room.id, room.topic, now);
+        // Create session in DB
+        const now = new Date().toISOString();
+        const result = await db.prepare(
+          'INSERT INTO sessions (room_id, topic, started_at) VALUES (?, ?, ?)'
+        ).run(room.id, room.topic, now);
 
-      // Update room status
-      db.prepare("UPDATE rooms SET status = 'active' WHERE id = ?").run(room.id);
+        // Update room status
+        await db.prepare("UPDATE rooms SET status = 'active' WHERE id = ?").run(room.id);
 
-      roomState.gdStarted = true;
-      roomState.startTime = now;
-      roomState.session = { id: result.lastInsertRowid, startTime: now };
+        roomState.gdStarted = true;
+        roomState.startTime = now;
+        roomState.session = { id: result.lastInsertRowid, startTime: now };
 
-      io.to(roomCode).emit('gd-started', {
-        startTime: now,
-        sessionId: result.lastInsertRowid,
-      });
+        io.to(roomCode).emit('gd-started', {
+          startTime: now,
+          sessionId: result.lastInsertRowid,
+        });
 
-      console.log(`🎙️ GD started in room ${roomCode}`);
+        console.log(`🎙️ GD started in room ${roomCode}`);
+      } catch (err) {
+        console.error('Start GD error:', err);
+        socket.emit('error-msg', 'Failed to start GD');
+      }
     });
 
     // ── Start Speaking ────────────────────────────────
@@ -115,7 +125,7 @@ function initializeSocket(io) {
     });
 
     // ── Stop Speaking ─────────────────────────────────
-    socket.on('stop-speaking', ({ roomCode, contributionData }) => {
+    socket.on('stop-speaking', async ({ roomCode, contributionData }) => {
       const roomState = activeRooms.get(roomCode);
       if (!roomState || !roomState.gdStarted) return;
 
@@ -131,11 +141,11 @@ function initializeSocket(io) {
       if (roomState.session && contributionData) {
         try {
           // Count existing contributions for ordering
-          const existingCount = db.prepare(
+          const countResult = await db.prepare(
             'SELECT COUNT(*) as count FROM contributions WHERE session_id = ? AND user_id = ?'
-          ).get(roomState.session.id, socket.user.id).count;
+          ).get(roomState.session.id, socket.user.id);
 
-          db.prepare(
+          await db.prepare(
             'INSERT INTO contributions (session_id, user_id, start_time, end_time, duration, transcript, contribution_order) VALUES (?, ?, ?, ?, ?, ?, ?)'
           ).run(
             roomState.session.id,
@@ -144,7 +154,7 @@ function initializeSocket(io) {
             contributionData.endTime,
             contributionData.duration,
             contributionData.transcript || null,
-            existingCount + 1
+            (parseInt(countResult?.count, 10) || 0) + 1
           );
         } catch (err) {
           console.error('Save contribution error:', err);
@@ -162,111 +172,116 @@ function initializeSocket(io) {
 
     // ── End GD ────────────────────────────────────────
     socket.on('end-gd', async (roomCode) => {
-      const room = db.prepare('SELECT * FROM rooms WHERE code = ?').get(roomCode);
-      if (!room) return socket.emit('error-msg', 'Room not found');
-      if (room.host_id !== socket.user.id) return socket.emit('error-msg', 'Only the host can end the GD');
+      try {
+        const room = await db.prepare('SELECT * FROM rooms WHERE code = ?').get(roomCode);
+        if (!room) return socket.emit('error-msg', 'Room not found');
+        if (room.host_id !== socket.user.id) return socket.emit('error-msg', 'Only the host can end the GD');
 
-      const roomState = activeRooms.get(roomCode);
-      if (!roomState || !roomState.gdStarted || !roomState.session) return;
+        const roomState = activeRooms.get(roomCode);
+        if (!roomState || !roomState.gdStarted || !roomState.session) return;
 
-      const now = new Date().toISOString();
-      const startTime = new Date(roomState.session.startTime);
-      const endTime = new Date(now);
-      const durationSec = (endTime - startTime) / 1000;
+        const now = new Date().toISOString();
+        const startTime = new Date(roomState.session.startTime);
+        const endTime = new Date(now);
+        const durationSec = (endTime - startTime) / 1000;
 
-      // Update session
-      db.prepare(
-        'UPDATE sessions SET ended_at = ?, duration = ? WHERE id = ?'
-      ).run(now, Math.round(durationSec), roomState.session.id);
+        // Update session
+        await db.prepare(
+          'UPDATE sessions SET ended_at = ?, duration = ? WHERE id = ?'
+        ).run(now, Math.round(durationSec), roomState.session.id);
 
-      // Update room status
-      db.prepare("UPDATE rooms SET status = 'ended' WHERE id = ?").run(room.id);
+        // Update room status
+        await db.prepare("UPDATE rooms SET status = 'ended' WHERE id = ?").run(room.id);
 
-      // Notify all participants that evaluation is in progress
-      io.to(roomCode).emit('gd-ending', { message: 'Evaluating performance...' });
+        // Notify all participants that evaluation is in progress
+        io.to(roomCode).emit('gd-ending', { message: 'Evaluating performance...' });
 
-      // Evaluate each participant individually
-      const participants = db.prepare(`
-        SELECT DISTINCT rp.user_id, u.username
-        FROM room_participants rp
-        JOIN users u ON rp.user_id = u.id
-        WHERE rp.room_id = ?
-      `).all(room.id);
+        // Evaluate each participant individually
+        const participants = await db.prepare(`
+          SELECT DISTINCT rp.user_id, u.username
+          FROM room_participants rp
+          JOIN users u ON rp.user_id = u.id
+          WHERE rp.room_id = ?
+        `).all(room.id);
 
-      const evaluationPromises = participants.map(async (participant) => {
-        try {
-          // Get this participant's contributions
-          const contributions = db.prepare(
-            'SELECT * FROM contributions WHERE session_id = ? AND user_id = ? ORDER BY contribution_order ASC'
-          ).all(roomState.session.id, participant.user_id);
+        const evaluationPromises = participants.map(async (participant) => {
+          try {
+            // Get this participant's contributions
+            const contributions = await db.prepare(
+              'SELECT * FROM contributions WHERE session_id = ? AND user_id = ? ORDER BY contribution_order ASC'
+            ).all(roomState.session.id, participant.user_id);
 
-          const contributionDurations = contributions.map(c => c.duration || 0);
-          const totalSpeakingTime = contributionDurations.reduce((a, b) => a + b, 0);
-          const contributionTimestamps = contributions.map(c => {
-            const cs = new Date(c.start_time);
-            return (cs - startTime) / 1000;
-          });
+            const contributionDurations = contributions.map(c => c.duration || 0);
+            const totalSpeakingTime = contributionDurations.reduce((a, b) => a + b, 0);
+            const contributionTimestamps = contributions.map(c => {
+              const cs = new Date(c.start_time);
+              return (cs - startTime) / 1000;
+            });
 
-          const evalData = {
-            username: participant.username,
-            topic: room.topic,
-            totalParticipants: participants.length,
-            contributionCount: contributions.length,
-            totalSpeakingTime,
-            discussionDuration: durationSec,
-            contributionDurations,
-            contributionTimestamps,
-            contributions: contributions.map(c => ({
-              order: c.contribution_order,
-              duration: c.duration || 0,
-              transcript: c.transcript ? c.transcript.trim() : '',
-            })),
-          };
+            const evalData = {
+              username: participant.username,
+              topic: room.topic,
+              totalParticipants: participants.length,
+              contributionCount: contributions.length,
+              totalSpeakingTime,
+              discussionDuration: durationSec,
+              contributionDurations,
+              contributionTimestamps,
+              contributions: contributions.map(c => ({
+                order: c.contribution_order,
+                duration: c.duration || 0,
+                transcript: c.transcript ? c.transcript.trim() : '',
+              })),
+            };
 
-          const evaluation = await evaluateParticipant(evalData);
+            const evaluation = await evaluateParticipant(evalData);
 
-          // Store evaluation
-          db.prepare(`
-            INSERT OR REPLACE INTO evaluations
-            (session_id, user_id, overall_score, communication_score, content_score,
-             participation_score, collaboration_score, leadership_score,
-             strengths, improvements, feedback)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-          `).run(
-            roomState.session.id,
-            participant.user_id,
-            evaluation.overall_score,
-            evaluation.communication_score,
-            evaluation.content_score,
-            evaluation.participation_score,
-            evaluation.collaboration_score,
-            evaluation.leadership_score,
-            JSON.stringify(evaluation.strengths),
-            JSON.stringify(evaluation.improvements),
-            evaluation.feedback
-          );
+            // Store evaluation
+            await db.prepare(`
+              INSERT OR REPLACE INTO evaluations
+              (session_id, user_id, overall_score, communication_score, content_score,
+               participation_score, collaboration_score, leadership_score,
+               strengths, improvements, feedback)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            `).run(
+              roomState.session.id,
+              participant.user_id,
+              evaluation.overall_score,
+              evaluation.communication_score,
+              evaluation.content_score,
+              evaluation.participation_score,
+              evaluation.collaboration_score,
+              evaluation.leadership_score,
+              JSON.stringify(evaluation.strengths),
+              JSON.stringify(evaluation.improvements),
+              evaluation.feedback
+            );
 
-          return { userId: participant.user_id, evaluation };
-        } catch (err) {
-          console.error(`Evaluation error for ${participant.username}:`, err);
-          return { userId: participant.user_id, evaluation: null };
-        }
-      });
+            return { userId: participant.user_id, evaluation };
+          } catch (err) {
+            console.error(`Evaluation error for ${participant.username}:`, err);
+            return { userId: participant.user_id, evaluation: null };
+          }
+        });
 
-      await Promise.all(evaluationPromises);
+        await Promise.all(evaluationPromises);
 
-      // Notify all participants
-      io.to(roomCode).emit('gd-ended', {
-        sessionId: roomState.session.id,
-        duration: Math.round(durationSec),
-      });
+        // Notify all participants
+        io.to(roomCode).emit('gd-ended', {
+          sessionId: roomState.session.id,
+          duration: Math.round(durationSec),
+        });
 
-      // Cleanup
-      roomState.gdStarted = false;
-      roomState.session = null;
-      roomState.speakingUser = null;
+        // Cleanup
+        roomState.gdStarted = false;
+        roomState.session = null;
+        roomState.speakingUser = null;
 
-      console.log(`🏁 GD ended in room ${roomCode}`);
+        console.log(`🏁 GD ended in room ${roomCode}`);
+      } catch (err) {
+        console.error('End GD error:', err);
+        socket.emit('error-msg', 'Failed to end GD');
+      }
     });
 
     // ── Disconnect ────────────────────────────────────

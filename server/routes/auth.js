@@ -16,7 +16,10 @@ router.post('/register', async (req, res) => {
       return res.status(400).json({ error: 'Username, email, and password are required' });
     }
 
-    if (username.length < 3) {
+    const cleanUsername = username.trim();
+    const cleanEmail = email.trim().toLowerCase();
+
+    if (cleanUsername.length < 3) {
       return res.status(400).json({ error: 'Username must be at least 3 characters' });
     }
 
@@ -25,26 +28,26 @@ router.post('/register', async (req, res) => {
     }
 
     // Check existing user
-    const existing = db.prepare('SELECT id FROM users WHERE username = ? OR email = ?').get(username, email);
+    const existing = await db.prepare('SELECT id FROM users WHERE username = ? OR email = ?').get(cleanUsername, cleanEmail);
     if (existing) {
       return res.status(409).json({ error: 'Username or email already exists' });
     }
 
     const passwordHash = await bcrypt.hash(password, 10);
 
-    const result = db.prepare('INSERT INTO users (username, email, password_hash) VALUES (?, ?, ?)').run(
-      username.trim(), email.trim().toLowerCase(), passwordHash
+    const result = await db.prepare('INSERT INTO users (username, email, password_hash) VALUES (?, ?, ?)').run(
+      cleanUsername, cleanEmail, passwordHash
     );
 
     const token = jwt.sign(
-      { id: result.lastInsertRowid, username: username.trim() },
+      { id: result.lastInsertRowid, username: cleanUsername },
       config.JWT_SECRET,
       { expiresIn: '7d' }
     );
 
     res.status(201).json({
       token,
-      user: { id: result.lastInsertRowid, username: username.trim(), email: email.trim().toLowerCase() },
+      user: { id: result.lastInsertRowid, username: cleanUsername, email: cleanEmail },
     });
   } catch (err) {
     console.error('Register error:', err);
@@ -61,7 +64,7 @@ router.post('/login', async (req, res) => {
       return res.status(400).json({ error: 'Email and password are required' });
     }
 
-    const user = db.prepare('SELECT * FROM users WHERE email = ?').get(email.trim().toLowerCase());
+    const user = await db.prepare('SELECT * FROM users WHERE email = ?').get(email.trim().toLowerCase());
     if (!user) {
       return res.status(401).json({ error: 'Invalid email or password' });
     }
@@ -88,8 +91,8 @@ router.post('/login', async (req, res) => {
 });
 
 // ── Get current user ────────────────────────────────────
-router.get('/me', auth, (req, res) => {
-  const user = db.prepare('SELECT id, username, email, created_at FROM users WHERE id = ?').get(req.user.id);
+router.get('/me', auth, async (req, res) => {
+  const user = await db.prepare('SELECT id, username, email, created_at FROM users WHERE id = ?').get(req.user.id);
   if (!user) {
     return res.status(404).json({ error: 'User not found' });
   }

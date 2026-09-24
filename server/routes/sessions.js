@@ -5,9 +5,9 @@ const auth = require('../middleware/auth');
 const router = express.Router();
 
 // ── List User's Sessions ────────────────────────────────
-router.get('/', auth, (req, res) => {
+router.get('/', auth, async (req, res) => {
   try {
-    const sessions = db.prepare(`
+    const sessions = await db.prepare(`
       SELECT
         s.id, s.topic, s.started_at, s.ended_at, s.duration,
         r.name as room_name, r.code as room_code,
@@ -36,9 +36,9 @@ router.get('/', auth, (req, res) => {
 });
 
 // ── Get Session Detail ──────────────────────────────────
-router.get('/:id', auth, (req, res) => {
+router.get('/:id', auth, async (req, res) => {
   try {
-    const session = db.prepare(`
+    const session = await db.prepare(`
       SELECT
         s.id, s.topic, s.started_at, s.ended_at, s.duration,
         r.name as room_name, r.code as room_code,
@@ -53,7 +53,7 @@ router.get('/:id', auth, (req, res) => {
     }
 
     // Check user was a participant
-    const wasParticipant = db.prepare(`
+    const wasParticipant = await db.prepare(`
       SELECT id FROM room_participants WHERE room_id = (SELECT room_id FROM sessions WHERE id = ?) AND user_id = ?
     `).get(req.params.id, req.user.id);
 
@@ -62,12 +62,12 @@ router.get('/:id', auth, (req, res) => {
     }
 
     // Get this user's evaluation only
-    const evaluation = db.prepare(`
+    const evaluation = await db.prepare(`
       SELECT * FROM evaluations WHERE session_id = ? AND user_id = ?
     `).get(req.params.id, req.user.id);
 
     // Get this user's contributions only
-    const contributions = db.prepare(`
+    const contributions = await db.prepare(`
       SELECT id, start_time, end_time, duration, contribution_order, transcript
       FROM contributions
       WHERE session_id = ? AND user_id = ?

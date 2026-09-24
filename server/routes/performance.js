@@ -5,9 +5,9 @@ const auth = require('../middleware/auth');
 const router = express.Router();
 
 // ── Get Performance Summary ─────────────────────────────
-router.get('/', auth, (req, res) => {
+router.get('/', auth, async (req, res) => {
   try {
-    const stats = db.prepare(`
+    const stats = await db.prepare(`
       SELECT
         COUNT(*) as total_sessions,
         COALESCE(AVG(e.overall_score), 0) as avg_score,
@@ -23,7 +23,7 @@ router.get('/', auth, (req, res) => {
       WHERE e.user_id = ? AND s.ended_at IS NOT NULL
     `).get(req.user.id, req.user.id);
 
-    const contributionStats = db.prepare(`
+    const contributionStats = await db.prepare(`
       SELECT
         COUNT(*) as total_contributions,
         COALESCE(SUM(c.duration), 0) as total_speaking_time
@@ -33,12 +33,12 @@ router.get('/', auth, (req, res) => {
     `).get(req.user.id);
 
     res.json({
-      total_sessions: stats.total_sessions,
-      avg_score: Math.round(stats.avg_score * 10) / 10,
-      best_score: Math.round(stats.best_score),
-      latest_score: Math.round(stats.latest_score),
-      total_contributions: contributionStats.total_contributions,
-      total_speaking_time: Math.round(contributionStats.total_speaking_time),
+      total_sessions: parseInt(stats.total_sessions, 10) || 0,
+      avg_score: Math.round((parseFloat(stats.avg_score) || 0) * 10) / 10,
+      best_score: Math.round(parseFloat(stats.best_score) || 0),
+      latest_score: Math.round(parseFloat(stats.latest_score) || 0),
+      total_contributions: parseInt(contributionStats.total_contributions, 10) || 0,
+      total_speaking_time: Math.round(parseFloat(contributionStats.total_speaking_time) || 0),
     });
   } catch (err) {
     console.error('Performance stats error:', err);
@@ -47,9 +47,9 @@ router.get('/', auth, (req, res) => {
 });
 
 // ── Get Performance History (for charts) ────────────────
-router.get('/history', auth, (req, res) => {
+router.get('/history', auth, async (req, res) => {
   try {
-    const history = db.prepare(`
+    const history = await db.prepare(`
       SELECT
         s.id as session_id,
         s.topic,

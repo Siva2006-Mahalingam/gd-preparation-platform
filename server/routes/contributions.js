@@ -59,7 +59,7 @@ router.post('/upload', auth, upload.single('audio'), async (req, res) => {
     // Check if a contribution record already exists for this session, user, and start_time (created by socket)
     let contribution = null;
     if (startTime) {
-      contribution = db.prepare(`
+      contribution = await db.prepare(`
         SELECT * FROM contributions
         WHERE session_id = ? AND user_id = ? AND start_time = ?
       `).get(sessionId, req.user.id, startTime);
@@ -67,7 +67,7 @@ router.post('/upload', auth, upload.single('audio'), async (req, res) => {
 
     if (contribution) {
       // Update existing record
-      db.prepare(`
+      await db.prepare(`
         UPDATE contributions
         SET audio_path = COALESCE(?, audio_path),
             transcript = COALESCE(?, transcript),
@@ -91,11 +91,11 @@ router.post('/upload', auth, upload.single('audio'), async (req, res) => {
     }
 
     // Otherwise insert new contribution
-    const existingCount = db.prepare(
+    const countResult = await db.prepare(
       'SELECT COUNT(*) as count FROM contributions WHERE session_id = ? AND user_id = ?'
-    ).get(sessionId, req.user.id).count;
+    ).get(sessionId, req.user.id);
 
-    const result = db.prepare(`
+    const result = await db.prepare(`
       INSERT INTO contributions
       (session_id, user_id, start_time, end_time, duration, audio_path, transcript, contribution_order)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
@@ -107,7 +107,7 @@ router.post('/upload', auth, upload.single('audio'), async (req, res) => {
       duration ? parseFloat(duration) : 0,
       audioPath,
       finalTranscript,
-      existingCount + 1
+      (parseInt(countResult?.count, 10) || 0) + 1
     );
 
     res.json({
