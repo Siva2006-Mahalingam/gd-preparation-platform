@@ -58,10 +58,18 @@ async function api(endpoint, options = {}) {
       headers,
     });
 
-    const data = await response.json();
+    let data = {};
+    try {
+      data = await response.json();
+    } catch {
+      // Non-JSON response (e.g., 502/503 HTML from proxy)
+      if (!response.ok) {
+        throw new Error(`Server temporarily unavailable (${response.status}). Please try again in 10-20 seconds.`);
+      }
+    }
 
     if (!response.ok) {
-      throw new Error(data.error || 'Something went wrong');
+      throw new Error(data.error || `Request failed with status ${response.status}`);
     }
 
     return data;
@@ -70,6 +78,9 @@ async function api(endpoint, options = {}) {
       clearAuth();
       window.location.href = '/auth.html';
       return;
+    }
+    if (err.name === 'TypeError' && err.message === 'Failed to fetch') {
+      throw new Error('Connecting to server... If it is waking up from sleep, please retry in 10-15 seconds.');
     }
     throw err;
   }

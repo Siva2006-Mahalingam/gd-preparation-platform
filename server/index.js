@@ -6,7 +6,7 @@ const path = require('path');
 const fs = require('fs');
 
 const config = require('./config');
-const { initialize } = require('./db');
+const { initialize, isPostgres } = require('./db');
 const { initializeSocket } = require('./socket/handler');
 
 // Routes
@@ -20,12 +20,13 @@ const contributionRoutes = require('./routes/contributions');
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
-  cors: { origin: '*', methods: ['GET', 'POST'] },
+  cors: { origin: '*', methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'] },
   maxHttpBufferSize: 10 * 1024 * 1024, // 10MB for audio uploads
 });
 
 // Middleware
 app.use(cors());
+app.options('*', cors());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.static(path.join(__dirname, '..', 'public')));
 
@@ -36,6 +37,14 @@ if (!fs.existsSync(uploadsDir)) {
 }
 
 // ── API Routes ──────────────────────────────────────────
+app.get('/api/health', (req, res) => {
+  res.json({
+    status: 'ok',
+    database: isPostgres ? 'postgresql' : 'sqlite',
+    time: new Date().toISOString(),
+  });
+});
+
 app.use('/api/auth', authRoutes);
 app.use('/api/rooms', roomRoutes);
 app.use('/api/sessions', sessionRoutes);
