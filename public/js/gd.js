@@ -9,6 +9,8 @@ let currentUser = null;
 let isHost = false;
 let gdActive = false;
 let gdStartTime = null;
+let gdEndTime = null;
+let gdDurationMinutes = 15;
 let timerInterval = null;
 
 // Microphone & Speech Recognition state
@@ -75,9 +77,11 @@ function connectSocket(roomCode) {
     renderParticipants(participants);
   });
 
-  socket.on('gd-started', ({ startTime, sessionId }) => {
+  socket.on('gd-started', ({ startTime, endTime, durationSeconds, durationMinutes, sessionId }) => {
     gdActive = true;
     gdStartTime = new Date(startTime);
+    gdDurationMinutes = durationMinutes || 15;
+    gdEndTime = endTime ? new Date(endTime) : new Date(gdStartTime.getTime() + (durationSeconds || (gdDurationMinutes * 60)) * 1000);
     roomData.sessionId = sessionId;
     showGdRoom();
     startTimer();
@@ -144,23 +148,72 @@ function showWaitingRoom() {
 
   document.getElementById('hostName').textContent = roomData.host_username;
 
+  // Retrieve duration set during room creation if any
+  const savedDuration = sessionStorage.getItem('host_duration_' + roomData.code) || '15';
+  const durationDisplay = document.getElementById('waitingDurationDisplay');
+  if (durationDisplay) durationDisplay.textContent = `${savedDuration} mins`;
+
+  // Navbar Leave Room button
+  const navLeaveBtn = document.getElementById('navLeaveBtn');
+  if (navLeaveBtn) {
+    navLeaveBtn.classList.remove('hidden');
+    navLeaveBtn.onclick = () => openModal('leaveRoomModal');
+  }
+
+  // Wire confirm leave button
+  const confirmLeaveBtn = document.getElementById('confirmLeaveRoom');
+  if (confirmLeaveBtn) {
+    confirmLeaveBtn.onclick = () => {
+      closeModal('leaveRoomModal');
+      leaveRoomAction();
+    };
+  }
+
   // Actions
   const actionsDiv = document.getElementById('waitingActions');
   if (isHost) {
     actionsDiv.innerHTML = `
+      <div class="host-duration-card mb-4" style="background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--r-md); padding: var(--s-4); text-align: left;">
+        <label for="gdDurationSelect" class="form-label" style="font-weight: 700; color: var(--text-primary); margin-bottom: 6px; display: block;">
+          ⏱️ Discussion Duration:
+        </label>
+        <div style="display: flex; gap: var(--s-3); align-items: center; flex-wrap: wrap;">
+          <select id="gdDurationSelect" class="form-input" style="max-width: 220px; font-weight: 600;">
+            <option value="5" ${savedDuration === '5' ? 'selected' : ''}>5 Minutes</option>
+            <option value="10" ${savedDuration === '10' ? 'selected' : ''}>10 Minutes</option>
+            <option value="15" ${savedDuration === '15' ? 'selected' : ''}>15 Minutes (Standard)</option>
+            <option value="20" ${savedDuration === '20' ? 'selected' : ''}>20 Minutes</option>
+            <option value="30" ${savedDuration === '30' ? 'selected' : ''}>30 Minutes</option>
+            <option value="45" ${savedDuration === '45' ? 'selected' : ''}>45 Minutes</option>
+          </select>
+          <span class="text-tertiary text-xs" style="flex: 1; min-width: 180px;">The timer starts automatically upon launch and synchronizes across all participants.</span>
+        </div>
+      </div>
       <button class="btn btn-primary btn-lg" id="startGdBtn">Start Discussion</button>
       <p class="text-tertiary text-sm mt-3">Share the room code with participants before starting.</p>
     `;
+
+    document.getElementById('gdDurationSelect').addEventListener('change', (e) => {
+      const val = e.target.value;
+      if (durationDisplay) durationDisplay.textContent = `${val} mins`;
+      sessionStorage.setItem('host_duration_' + roomData.code, val);
+    });
+
     document.getElementById('startGdBtn').addEventListener('click', () => {
-      socket.emit('start-gd', roomData.code);
+      const durationMinutes = parseInt(document.getElementById('gdDurationSelect')?.value || savedDuration, 10);
+      socket.emit('start-gd', { roomCode: roomData.code, durationMinutes });
     });
   } else {
     actionsDiv.innerHTML = `
       <div class="waiting-message">
         <h3>Waiting for host to start</h3>
-        <p>The host will start the discussion when everyone is ready.</p>
+        <p>The host will configure the discussion duration and start when everyone is ready.</p>
+        <button class="btn btn-ghost text-danger mt-4" id="waitingLeaveBtn" style="border: 1px solid rgba(192,57,43,0.35);">Leave Room</button>
       </div>
     `;
+    document.getElementById('waitingLeaveBtn')?.addEventListener('click', () => {
+      openModal('leaveRoomModal');
+    });
   }
 }
 
@@ -176,9 +229,10 @@ function showGdRoom() {
   micBtn.addEventListener('click', toggleMicrophone);
   handleMicReleased();
 
-  // Host controls
+  // Host vs Participant controls
   const controlsDiv = document.getElementById('gdControls');
   if (isHost) {
+    // Only the host can manually end the GD
     controlsDiv.innerHTML = `
       <button class="btn btn-danger btn-lg" id="endGdBtn">End Discussion</button>
     `;
@@ -189,7 +243,48 @@ function showGdRoom() {
       closeModal('endGdModal');
       socket.emit('end-gd', roomData.code);
     });
+  } else {
+    // Participants have a Leave Room option (never End GD)
+    controlsDiv.innerHTML = `
+      <button class="btn btn-ghost text-danger" id="participantLeaveBtn" style="border: 1px solid rgba(192,57,43,0.35); font-weight: 600;">Leave Room</button>
+    `;
+    document.getElementById('participantLeaveBtn').addEventListener('click', () => {
+      openModal('leaveRoomModal');
+    });
   }
+
+  // Ensure navbar leave button is wired
+  const navLeaveBtn = document.getElementById('navLeaveBtn');
+  if (navLeaveBtn) {
+    navLeaveBtn.classList.remove('hidden');
+    navLeaveBtn.onclick = () => openModal('leaveRoomModal');
+  }
+
+  const confirmLeaveBtn = document.getElementById('confirmLeaveRoom');
+  if (confirmLeaveBtn) {
+    confirmLeaveBtn.onclick = () => {
+      closeModal('leaveRoomModal');
+      leaveRoomAction();
+    };
+  }
+}
+
+// ── Participant Leave Room Action ────────────────────────
+function leaveRoomAction() {
+  if (isSpeaking) {
+    stopSpeaking(true);
+  }
+  if (audioStream) {
+    audioStream.getTracks().forEach(t => t.stop());
+    audioStream = null;
+  }
+  if (socket && roomData) {
+    socket.emit('leave-room', roomData.code);
+  }
+  showToast('You left the room.', 'info');
+  setTimeout(() => {
+    window.location.href = '/dashboard.html';
+  }, 250);
 }
 
 // ── Render Participants ─────────────────────────────────
@@ -253,13 +348,22 @@ function stopTimer() {
 }
 
 function updateTimer() {
-  if (!gdStartTime) return;
-  const elapsed = Math.floor((Date.now() - gdStartTime.getTime()) / 1000);
-  const mins = Math.floor(elapsed / 60);
-  const secs = elapsed % 60;
+  if (!gdEndTime) return;
+  const now = Date.now();
+  const remaining = Math.max(0, Math.floor((gdEndTime.getTime() - now) / 1000));
+  const mins = Math.floor(remaining / 60);
+  const secs = remaining % 60;
   const timerEl = document.getElementById('timerValue');
   if (timerEl) {
     timerEl.textContent = `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    if (remaining <= 60 && remaining > 0) {
+      timerEl.classList.add('timer-warning');
+    } else if (remaining === 0) {
+      timerEl.classList.add('timer-expired');
+      timerEl.textContent = '00:00';
+    } else {
+      timerEl.classList.remove('timer-warning', 'timer-expired');
+    }
   }
 }
 
@@ -498,6 +602,9 @@ async function startAudioRecording() {
           recognizedTranscript = (finalTranscript + interimTranscript).trim();
           if (activeContrib) {
             activeContrib.transcript = recognizedTranscript;
+          }
+          if (socket && roomData) {
+            socket.emit('speech-transcript', { roomCode: roomData.code, transcript: recognizedTranscript });
           }
           const liveTextEl = document.getElementById('liveTranscriptText');
           if (liveTextEl) {

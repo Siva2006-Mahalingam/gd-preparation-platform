@@ -25,6 +25,7 @@
       <div class="navbar-user">
         <span class="user-name"></span>
         <div class="navbar-avatar"></div>
+        <button class="btn btn-ghost btn-sm text-danger hidden" id="navLeaveBtn" style="border: 1px solid rgba(192,57,43,0.35); margin-right: 4px;">Leave Room</button>
         <button class="btn btn-ghost btn-sm" id="logoutBtn">Logout</button>
         <button class="mobile-nav-btn" id="mobileNavBtn">&#9776;</button>
       </div>
@@ -64,6 +65,10 @@
               <div class="room-info-label">Participants</div>
               <div class="room-info-value"><span id="participantCount">0</span> joined</div>
             </div>
+            <div class="room-info-item">
+              <div class="room-info-label">GD Duration</div>
+              <div class="room-info-value" id="waitingDurationDisplay">15 mins</div>
+            </div>
           </div>
 
           <!-- Participant List -->
@@ -86,10 +91,10 @@
             <div class="gd-topic-text" id="gdTopicText"></div>
           </div>
 
-          <!-- Timer -->
+          <!-- Timer (Synchronized server-side countdown) -->
           <div class="gd-timer">
-            <div class="timer-label">Discussion time</div>
-            <div class="timer-value" id="timerValue">00:00</div>
+            <div class="timer-label">Time Remaining</div>
+            <div class="timer-value" id="timerValue">15:00</div>
           </div>
 
           <!-- Participants -->
@@ -123,7 +128,7 @@
     </div>
   </div>
 
-  <!-- End GD Confirmation -->
+  <!-- End GD Confirmation (Host Only) -->
   <div class="modal-overlay" id="endGdModal">
     <div class="modal">
       <div class="confirm-dialog">
@@ -132,6 +137,20 @@
         <div class="confirm-actions">
           <button class="btn btn-secondary" onclick="closeModal('endGdModal')">Cancel</button>
           <button class="btn btn-danger" id="confirmEndGd">End Discussion</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Leave Room Confirmation (Participants & Host) -->
+  <div class="modal-overlay" id="leaveRoomModal">
+    <div class="modal">
+      <div class="confirm-dialog">
+        <h3>Leave Discussion Room?</h3>
+        <p>You can leave the room at any time. Your recorded contributions will be saved, and the discussion will continue normally for remaining participants.</p>
+        <div class="confirm-actions">
+          <button class="btn btn-secondary" onclick="closeModal('leaveRoomModal')">Stay in Room</button>
+          <button class="btn btn-danger" id="confirmLeaveRoom">Leave Room</button>
         </div>
       </div>
     </div>

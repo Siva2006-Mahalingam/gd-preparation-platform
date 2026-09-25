@@ -1039,6 +1039,27 @@ select.form-input {
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.05em;
   font-family: 'Courier New', monospace;
+  transition: color var(--t-fast);
+}
+
+.timer-value.timer-warning {
+  color: #f59e0b;
+  animation: pulse-timer 1s infinite alternate;
+}
+
+.timer-value.timer-expired {
+  color: #ef4444;
+}
+
+@keyframes pulse-timer {
+  from { opacity: 1; transform: scale(1); }
+  to { opacity: 0.8; transform: scale(1.03); }
+}
+
+.btn-ghost.text-danger:hover {
+  background: var(--danger-bg);
+  color: var(--danger);
+  border-color: var(--danger) !important;
 }
 
 /* Participant list */

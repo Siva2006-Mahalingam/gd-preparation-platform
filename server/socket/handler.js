@@ -65,6 +65,8 @@ function initializeSocket(io) {
         if (roomState.gdStarted) {
           socket.emit('gd-started', {
             startTime: roomState.startTime,
+            endTime: roomState.endTime,
+            durationSeconds: roomState.durationSeconds,
             sessionId: roomState.session?.id,
           });
 
@@ -86,9 +88,22 @@ function initializeSocket(io) {
       }
     });
 
-    // ── Start GD ──────────────────────────────────────
-    socket.on('start-gd', async (roomCode) => {
+    // Live interim transcript stream from active speaker
+    socket.on('speech-transcript', ({ roomCode, transcript }) => {
+      const roomState = activeRooms.get(roomCode);
+      if (roomState && roomState.currentSpeaker && roomState.currentSpeaker.socketId === socket.id) {
+        roomState.currentSpeaker.lastTranscript = transcript;
+      }
+    });
+
+    // ── Start GD with Duration / Synchronized Timer ────
+    socket.on('start-gd', async (data) => {
       try {
+        const roomCode = typeof data === 'string' ? data : data?.roomCode;
+        const requestedDuration = typeof data === 'object' ? parseInt(data?.durationMinutes, 10) : 15;
+        const durationMinutes = Math.min(Math.max(isNaN(requestedDuration) ? 15 : requestedDuration, 1), 120);
+        const durationSeconds = durationMinutes * 60;
+
         const room = await db.prepare('SELECT * FROM rooms WHERE code = ?').get(roomCode);
         if (!room) return socket.emit('error-msg', 'Room not found');
         if (room.host_id !== socket.user.id) return socket.emit('error-msg', 'Only the host can start the GD');
@@ -98,6 +113,8 @@ function initializeSocket(io) {
 
         // Create session in DB
         const now = new Date().toISOString();
+        const endTime = new Date(Date.now() + durationSeconds * 1000).toISOString();
+
         const result = await db.prepare(
           'INSERT INTO sessions (room_id, topic, started_at) VALUES (?, ?, ?)'
         ).run(room.id, room.topic, now);
@@ -107,16 +124,35 @@ function initializeSocket(io) {
 
         roomState.gdStarted = true;
         roomState.startTime = now;
+        roomState.endTime = endTime;
+        roomState.durationSeconds = durationSeconds;
+        roomState.durationMinutes = durationMinutes;
         roomState.session = { id: result.lastInsertRowid, startTime: now };
         roomState.currentSpeaker = null; // No one gets the mic automatically
+        roomState.isEnding = false;
 
         // Reset participant statuses to ready
         for (const [, p] of roomState.participants) {
           p.status = 'ready';
         }
 
+        // Cancel any pending timer
+        if (roomState.autoEndTimer) {
+          clearTimeout(roomState.autoEndTimer);
+          roomState.autoEndTimer = null;
+        }
+
+        // Automatically end GD when timer reaches zero
+        roomState.autoEndTimer = setTimeout(async () => {
+          console.log(`⏰ Timer reached zero for room ${roomCode} (${durationMinutes}m). Auto-ending GD.`);
+          await executeEndGd(io, roomCode, 'timer_expired');
+        }, durationSeconds * 1000);
+
         io.to(roomCode).emit('gd-started', {
           startTime: now,
+          endTime,
+          durationSeconds,
+          durationMinutes,
           sessionId: result.lastInsertRowid,
         });
 
@@ -124,7 +160,7 @@ function initializeSocket(io) {
         io.to(roomCode).emit('mic-released');
 
         broadcastParticipants(io, roomCode);
-        console.log(`🎙️ GD started in room ${roomCode}`);
+        console.log(`🎙️ GD started in room ${roomCode} for ${durationMinutes} mins (Timer starts automatically)`);
       } catch (err) {
         console.error('Start GD error:', err);
         socket.emit('error-msg', 'Failed to start GD');
@@ -134,7 +170,12 @@ function initializeSocket(io) {
     // ── First-Come-First-Served Microphone Request ────
     socket.on('request-mic', (roomCode) => {
       const roomState = activeRooms.get(roomCode);
-      if (!roomState || !roomState.gdStarted) return;
+      if (!roomState || !roomState.gdStarted || roomState.isEnding) {
+        socket.emit('mic-rejected', {
+          message: 'The discussion has ended or is not active.',
+        });
+        return;
+      }
 
       // Lock check: if someone is already speaking, reject immediately
       if (roomState.currentSpeaker) {
@@ -255,110 +296,14 @@ function initializeSocket(io) {
     socket.on('release-mic', (data) => handleReleaseMic(data));
     socket.on('stop-speaking', (data) => handleReleaseMic(data));
 
-    // ── End GD ────────────────────────────────────────
+    // ── End GD (Manual Host Action) ──────────────────
     socket.on('end-gd', async (roomCode) => {
       try {
         const room = await db.prepare('SELECT * FROM rooms WHERE code = ?').get(roomCode);
         if (!room) return socket.emit('error-msg', 'Room not found');
         if (room.host_id !== socket.user.id) return socket.emit('error-msg', 'Only the host can end the GD');
 
-        const roomState = activeRooms.get(roomCode);
-        if (!roomState || !roomState.gdStarted || !roomState.session) return;
-
-        // Notify room evaluation is starting
-        io.to(roomCode).emit('gd-ending');
-
-        // End session in DB
-        const now = new Date().toISOString();
-        const durationSec = (new Date(now) - new Date(roomState.startTime)) / 1000;
-
-        await db.prepare(
-          'UPDATE sessions SET ended_at = ?, duration = ? WHERE id = ?'
-        ).run(now, Math.round(durationSec), roomState.session.id);
-
-        await db.prepare("UPDATE rooms SET status = 'ended' WHERE id = ?").run(room.id);
-
-        // Fetch participants for evaluation
-        const participants = await db.prepare(`
-          SELECT u.id as user_id, u.username
-          FROM room_participants rp
-          JOIN users u ON rp.user_id = u.id
-          WHERE rp.room_id = ?
-        `).all(room.id);
-
-        // Run AI evaluation for each participant
-        const evaluationPromises = participants.map(async (participant) => {
-          try {
-            const contributions = await db.prepare(
-              'SELECT transcript, duration, start_time, contribution_order FROM contributions WHERE session_id = ? AND user_id = ? ORDER BY start_time ASC'
-            ).all(roomState.session.id, participant.user_id);
-
-            const totalSpeakingTime = contributions.reduce((sum, c) => sum + (c.duration || 0), 0);
-            const durations = contributions.map(c => c.duration || 0);
-            const timestamps = contributions.map(c =>
-              Math.max(0, (new Date(c.start_time) - new Date(roomState.startTime)) / 1000)
-            );
-
-            const evalData = {
-              username: participant.username,
-              topic: room.topic,
-              totalParticipants: participants.length,
-              contributionCount: contributions.length,
-              totalSpeakingTime,
-              discussionDuration: durationSec,
-              contributionDurations: durations,
-              contributionTimestamps: timestamps,
-              contributions: contributions.map(c => ({
-                order: c.contribution_order,
-                duration: c.duration || 0,
-                transcript: c.transcript ? c.transcript.trim() : '',
-              })),
-            };
-
-            const evaluation = await evaluateParticipant(evalData);
-
-            // Store evaluation in DB
-            await db.prepare(`
-              INSERT OR REPLACE INTO evaluations
-              (session_id, user_id, overall_score, communication_score, content_score,
-               participation_score, collaboration_score, leadership_score,
-               strengths, improvements, feedback)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            `).run(
-              roomState.session.id,
-              participant.user_id,
-              evaluation.overall_score,
-              evaluation.communication_score,
-              evaluation.content_quality_score, // matches content_score
-              evaluation.participation_score,
-              evaluation.team_interaction_score, // matches collaboration_score
-              evaluation.leadership_score,
-              JSON.stringify(evaluation.strengths),
-              JSON.stringify(evaluation.improvements),
-              evaluation.feedback
-            );
-
-            return { userId: participant.user_id, evaluation };
-          } catch (err) {
-            console.error(`Evaluation error for ${participant.username}:`, err);
-            return { userId: participant.user_id, evaluation: null };
-          }
-        });
-
-        await Promise.all(evaluationPromises);
-
-        // Notify all participants
-        io.to(roomCode).emit('gd-ended', {
-          sessionId: roomState.session.id,
-          duration: Math.round(durationSec),
-        });
-
-        // Cleanup
-        roomState.gdStarted = false;
-        roomState.session = null;
-        roomState.currentSpeaker = null;
-
-        console.log(`🏁 GD ended in room ${roomCode}`);
+        await executeEndGd(io, roomCode, 'host_manual');
       } catch (err) {
         console.error('End GD error:', err);
         socket.emit('error-msg', 'Failed to end GD');
@@ -368,52 +313,230 @@ function initializeSocket(io) {
     // ── Disconnect ────────────────────────────────────
     socket.on('disconnect', () => {
       console.log(`❌ ${socket.user.username} disconnected`);
-
       if (socket.roomCode) {
-        const roomState = activeRooms.get(socket.roomCode);
-        if (roomState) {
-          // If the disconnected user was holding the microphone, release it immediately!
-          if (roomState.currentSpeaker && roomState.currentSpeaker.socketId === socket.id) {
-            const prevSpeaker = roomState.currentSpeaker;
-            roomState.currentSpeaker = null;
-            io.to(socket.roomCode).emit('mic-released', {
-              previousSpeakerUsername: prevSpeaker.username,
-              userId: prevSpeaker.userId,
-            });
-          }
-
-          roomState.participants.delete(socket.id);
-          broadcastParticipants(io, socket.roomCode);
-
-          if (roomState.participants.size === 0) {
-            activeRooms.delete(socket.roomCode);
-          }
-        }
+        handleUserLeaving(io, socket, socket.roomCode);
       }
     });
 
-    // ── Leave Room ────────────────────────────────────
+    // ── Leave Room (Participant Permission) ────────────
     socket.on('leave-room', (roomCode) => {
       socket.leave(roomCode);
-
-      const roomState = activeRooms.get(roomCode);
-      if (roomState) {
-        if (roomState.currentSpeaker && roomState.currentSpeaker.socketId === socket.id) {
-          const prevSpeaker = roomState.currentSpeaker;
-          roomState.currentSpeaker = null;
-          io.to(roomCode).emit('mic-released', {
-            previousSpeakerUsername: prevSpeaker.username,
-            userId: prevSpeaker.userId,
-          });
-        }
-
-        roomState.participants.delete(socket.id);
-        broadcastParticipants(io, roomCode);
-      }
-
+      handleUserLeaving(io, socket, roomCode);
       socket.roomCode = null;
     });
   });
+}
+
+/**
+ * Handle participant leaving or disconnecting.
+ * - If participant leaves while speaking, automatically save their contribution and release mic lock.
+ * - Remaining participants continue the GD normally.
+ * - Leaving room does NOT end the GD.
+ */
+async function handleUserLeaving(io, socket, roomCode) {
+  const roomState = activeRooms.get(roomCode);
+  if (!roomState) return;
+
+  // If the leaving user was currently holding the microphone, auto-save contribution & release lock
+  if (roomState.currentSpeaker && roomState.currentSpeaker.socketId === socket.id) {
+    const prevSpeaker = roomState.currentSpeaker;
+    roomState.currentSpeaker = null;
+
+    if (roomState.session) {
+      try {
+        const now = new Date().toISOString();
+        const durationSec = Math.max(0.5, (new Date(now) - new Date(prevSpeaker.startTime)) / 1000);
+        const countResult = await db.prepare(
+          'SELECT COUNT(*) as count FROM contributions WHERE session_id = ? AND user_id = ?'
+        ).get(roomState.session.id, prevSpeaker.userId);
+
+        await db.prepare(
+          'INSERT INTO contributions (session_id, user_id, start_time, end_time, duration, transcript, contribution_order) VALUES (?, ?, ?, ?, ?, ?, ?)'
+        ).run(
+          roomState.session.id,
+          prevSpeaker.userId,
+          prevSpeaker.startTime,
+          now,
+          durationSec,
+          prevSpeaker.lastTranscript || '[Contribution before leaving room]',
+          (parseInt(countResult?.count, 10) || 0) + 1
+        );
+        console.log(`💾 Auto-saved speaking contribution for ${prevSpeaker.username} upon leaving room`);
+      } catch (saveErr) {
+        console.error('Error auto-saving contribution on leave:', saveErr);
+      }
+    }
+
+    // Release microphone lock for all remaining participants
+    io.to(roomCode).emit('mic-released', {
+      previousSpeakerUsername: prevSpeaker.username,
+      userId: prevSpeaker.userId,
+    });
+  }
+
+  roomState.participants.delete(socket.id);
+  broadcastParticipants(io, roomCode);
+
+  if (roomState.participants.size === 0) {
+    if (roomState.autoEndTimer) {
+      clearTimeout(roomState.autoEndTimer);
+      roomState.autoEndTimer = null;
+    }
+    activeRooms.delete(roomCode);
+  }
+}
+
+/**
+ * Conclude GD discussion: handles both Timer Reaching Zero and Host Manual End.
+ * - Stops accepting new speaking turns.
+ * - Stops current speaking session if active & saves contribution.
+ * - Evaluates all participants on 8 criteria.
+ * - Emits gd-ended with sessionId.
+ */
+async function executeEndGd(io, roomCode, triggerReason = 'host_manual') {
+  const roomState = activeRooms.get(roomCode);
+  if (!roomState || !roomState.gdStarted || !roomState.session || roomState.isEnding) return;
+
+  roomState.isEnding = true;
+
+  // Clear pending timer
+  if (roomState.autoEndTimer) {
+    clearTimeout(roomState.autoEndTimer);
+    roomState.autoEndTimer = null;
+  }
+
+  // 1. If someone is speaking, stop them and save their contribution
+  if (roomState.currentSpeaker) {
+    const speaker = roomState.currentSpeaker;
+    roomState.currentSpeaker = null;
+
+    try {
+      const now = new Date().toISOString();
+      const durSec = Math.max(0.5, (new Date(now) - new Date(speaker.startTime)) / 1000);
+
+      const countResult = await db.prepare(
+        'SELECT COUNT(*) as count FROM contributions WHERE session_id = ? AND user_id = ?'
+      ).get(roomState.session.id, speaker.userId);
+
+      await db.prepare(
+        'INSERT INTO contributions (session_id, user_id, start_time, end_time, duration, transcript, contribution_order) VALUES (?, ?, ?, ?, ?, ?, ?)'
+      ).run(
+        roomState.session.id,
+        speaker.userId,
+        speaker.startTime,
+        now,
+        durSec,
+        speaker.lastTranscript || '[Contribution completed as discussion ended]',
+        (parseInt(countResult?.count, 10) || 0) + 1
+      );
+    } catch (saveErr) {
+      console.error('Error auto-saving final speaker contribution on GD end:', saveErr);
+    }
+  }
+
+  // 2. Notify all participants that evaluation is beginning
+  io.to(roomCode).emit('gd-ending', { reason: triggerReason });
+
+  // 3. Mark session and room ended in DB
+  const now = new Date().toISOString();
+  const actualDurationSec = (new Date(now) - new Date(roomState.startTime)) / 1000;
+
+  try {
+    const room = await db.prepare('SELECT * FROM rooms WHERE code = ?').get(roomCode);
+    if (!room) return;
+
+    await db.prepare(
+      'UPDATE sessions SET ended_at = ?, duration = ? WHERE id = ?'
+    ).run(now, Math.round(actualDurationSec), roomState.session.id);
+
+    await db.prepare("UPDATE rooms SET status = 'ended' WHERE id = ?").run(room.id);
+
+    // Fetch participants for evaluation
+    const participants = await db.prepare(`
+      SELECT u.id as user_id, u.username
+      FROM room_participants rp
+      JOIN users u ON rp.user_id = u.id
+      WHERE rp.room_id = ?
+    `).all(room.id);
+
+    // Run AI evaluation for each participant
+    const evaluationPromises = participants.map(async (participant) => {
+      try {
+        const contributions = await db.prepare(
+          'SELECT transcript, duration, start_time, contribution_order FROM contributions WHERE session_id = ? AND user_id = ? ORDER BY start_time ASC'
+        ).all(roomState.session.id, participant.user_id);
+
+        const totalSpeakingTime = contributions.reduce((sum, c) => sum + (c.duration || 0), 0);
+        const durations = contributions.map(c => c.duration || 0);
+        const timestamps = contributions.map(c =>
+          Math.max(0, (new Date(c.start_time) - new Date(roomState.startTime)) / 1000)
+        );
+
+        const evalData = {
+          username: participant.username,
+          topic: room.topic,
+          totalParticipants: participants.length,
+          contributionCount: contributions.length,
+          totalSpeakingTime,
+          discussionDuration: actualDurationSec,
+          contributionDurations: durations,
+          contributionTimestamps: timestamps,
+          contributions: contributions.map(c => ({
+            order: c.contribution_order,
+            duration: c.duration || 0,
+            transcript: c.transcript ? c.transcript.trim() : '',
+          })),
+        };
+
+        const evaluation = await evaluateParticipant(evalData);
+
+        // Store evaluation in DB
+        await db.prepare(`
+          INSERT OR REPLACE INTO evaluations
+          (session_id, user_id, overall_score, communication_score, content_score,
+           participation_score, collaboration_score, leadership_score,
+           strengths, improvements, feedback)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `).run(
+          roomState.session.id,
+          participant.user_id,
+          evaluation.overall_score,
+          evaluation.communication_score,
+          evaluation.content_quality_score, // matches content_score
+          evaluation.participation_score,
+          evaluation.team_interaction_score, // matches collaboration_score
+          evaluation.leadership_score,
+          JSON.stringify(evaluation.strengths),
+          JSON.stringify(evaluation.improvements),
+          evaluation.feedback
+        );
+
+        return { userId: participant.user_id, evaluation };
+      } catch (err) {
+        console.error(`Evaluation error for ${participant.username}:`, err);
+        return { userId: participant.user_id, evaluation: null };
+      }
+    });
+
+    await Promise.all(evaluationPromises);
+
+    // Notify all participants with sessionId to view results
+    io.to(roomCode).emit('gd-ended', {
+      sessionId: roomState.session.id,
+      duration: Math.round(actualDurationSec),
+      reason: triggerReason,
+    });
+
+    console.log(`🏁 GD ended in room ${roomCode} (${triggerReason})`);
+  } catch (err) {
+    console.error('Error during executeEndGd:', err);
+    io.to(roomCode).emit('error-msg', 'Error processing GD conclusion');
+  } finally {
+    roomState.gdStarted = false;
+    roomState.session = null;
+    roomState.currentSpeaker = null;
+    roomState.isEnding = false;
+  }
 }
 
 function broadcastParticipants(io, roomCode) {

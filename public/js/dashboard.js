@@ -108,6 +108,11 @@ function setupActions() {
         }),
       });
 
+      const chosenDuration = document.getElementById('roomDuration')?.value || '15';
+      if (room?.code) {
+        sessionStorage.setItem('host_duration_' + room.code, chosenDuration);
+      }
+
       showToast('Room created!', 'success');
       closeModal('createRoomModal');
       window.location.href = `room.html?code=${room.code}`;
