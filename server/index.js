@@ -23,6 +23,7 @@ const io = new Server(server, {
   cors: { origin: '*', methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'] },
   maxHttpBufferSize: 10 * 1024 * 1024, // 10MB for audio uploads
 });
+app.set('io', io);
 
 // Middleware
 app.use(cors());

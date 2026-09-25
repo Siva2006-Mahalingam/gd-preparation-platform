@@ -103,6 +103,15 @@ function connectSocket(roomCode) {
     handleMicRejected({ speakerUsername, message });
   });
 
+  socket.on('topic-updated', ({ topic }) => {
+    roomData.topic = topic;
+    const topicEl = document.getElementById('topicText');
+    const gdTopicEl = document.getElementById('gdTopicText');
+    if (topicEl) topicEl.textContent = topic;
+    if (gdTopicEl) gdTopicEl.textContent = topic;
+    showToast('Discussion topic updated!', 'info');
+  });
+
   socket.on('gd-ending', () => {
     openModal('evalLoadingModal');
   });
@@ -193,6 +202,29 @@ function showWaitingRoom() {
       <p class="text-tertiary text-sm mt-3">Share the room code with participants before starting.</p>
     `;
 
+    // Host can regenerate / change topic to another category
+    const changeTopicBtn = document.getElementById('changeTopicBtn');
+    if (changeTopicBtn) {
+      changeTopicBtn.classList.remove('hidden');
+      changeTopicBtn.onclick = async () => {
+        changeTopicBtn.disabled = true;
+        changeTopicBtn.textContent = 'Generating...';
+        try {
+          const res = await api(`/rooms/${roomData.code}/topic/regenerate`, { method: 'POST' });
+          if (res?.topic) {
+            roomData.topic = res.topic;
+            document.getElementById('topicText').textContent = res.topic;
+            showToast('New topic generated!', 'success');
+          }
+        } catch (err) {
+          showToast(err.message || 'Could not change topic', 'error');
+        } finally {
+          changeTopicBtn.disabled = false;
+          changeTopicBtn.textContent = '🎲 Change Topic';
+        }
+      };
+    }
+
     document.getElementById('gdDurationSelect').addEventListener('change', (e) => {
       const val = e.target.value;
       if (durationDisplay) durationDisplay.textContent = `${val} mins`;
@@ -204,6 +236,9 @@ function showWaitingRoom() {
       socket.emit('start-gd', { roomCode: roomData.code, durationMinutes });
     });
   } else {
+    // Non-hosts do not have change topic capability
+    const changeTopicBtn = document.getElementById('changeTopicBtn');
+    if (changeTopicBtn) changeTopicBtn.classList.add('hidden');
     actionsDiv.innerHTML = `
       <div class="waiting-message">
         <h3>Waiting for host to start</h3>

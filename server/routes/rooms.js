@@ -23,8 +23,8 @@ router.post('/', auth, async (req, res) => {
     const max = Math.min(Math.max(parseInt(maxParticipants) || 6, 2), 20);
     const code = generateRoomCode();
 
-    // Fetch topic via API
-    const topic = await fetchTopic();
+    // Fetch topic via diverse balanced category engine (non-repeating)
+    const topic = await fetchTopic({ userId: req.user.id });
 
     const result = await db.prepare(
       'INSERT INTO rooms (code, name, topic, host_id, is_public, max_participants, status) VALUES (?, ?, ?, ?, ?, ?, ?)'
@@ -161,9 +161,9 @@ router.post('/:code/join', auth, async (req, res) => {
       );
     }
 
-    // If room doesn't have a topic, fetch one
+    // If room doesn't have a topic, fetch one using history
     if (!room.topic) {
-      const topic = await fetchTopic();
+      const topic = await fetchTopic({ userId: req.user.id });
       await db.prepare('UPDATE rooms SET topic = ? WHERE id = ?').run(topic, room.id);
       room.topic = topic;
     }
@@ -186,6 +186,31 @@ router.post('/:code/join', auth, async (req, res) => {
   } catch (err) {
     console.error('Join room error:', err);
     res.status(500).json({ error: 'Failed to join room' });
+  }
+});
+
+// ── Regenerate / Change Topic (Host Only in Waiting Room) ───
+router.post('/:code/topic/regenerate', auth, async (req, res) => {
+  try {
+    const room = await db.prepare('SELECT * FROM rooms WHERE code = ?').get(req.params.code.toUpperCase());
+    if (!room) return res.status(404).json({ error: 'Room not found' });
+    if (room.host_id !== req.user.id) return res.status(403).json({ error: 'Only the host can change the topic' });
+    if (room.status !== 'waiting') return res.status(400).json({ error: 'Cannot change topic once discussion has started' });
+
+    const newTopic = await fetchTopic({ userId: req.user.id, excludeTopics: [room.topic] });
+
+    await db.prepare('UPDATE rooms SET topic = ? WHERE id = ?').run(newTopic, room.id);
+
+    // Broadcast new topic to all participants in waiting room
+    const io = req.app.get('io');
+    if (io) {
+      io.to(room.code).emit('topic-updated', { topic: newTopic });
+    }
+
+    res.json({ topic: newTopic });
+  } catch (err) {
+    console.error('Regenerate topic error:', err);
+    res.status(500).json({ error: 'Failed to regenerate topic' });
   }
 });
 
