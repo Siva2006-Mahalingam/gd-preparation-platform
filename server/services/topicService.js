@@ -20,7 +20,7 @@ const CATEGORIES = [
       'Should higher education be completely subsidized by governments for all eligible students?',
       'Is peer-to-peer collaborative learning more effective than traditional lecture-based teaching?',
       'Should universities make interdisciplinary studies mandatory across all degree programs?',
-      'Are letter grades an effective motivator or a barrier to genuine intellectual curiosity?',
+      'Are letter grades an effective motivator or a barrier to genuine learning?',
     ],
   },
   {
@@ -46,10 +46,10 @@ const CATEGORIES = [
     weight: 12,
     topics: [
       'Is work experience more valuable than academic performance when starting a career?',
-      'Is a four-day work week viable and beneficial for employee productivity and wellbeing?',
+      'Is a four-day work week viable and beneficial for employee productivity?',
       'Does remote work promote better work-life balance or lead to professional burnout?',
       'Is frequent job switching beneficial for career acceleration or does it signal instability?',
-      'Should emotional intelligence and interpersonal skills be prioritized as heavily as technical ability in hiring?',
+      'Should emotional intelligence be valued as much as technical competence in hiring?',
       'Should companies replace rigid 9-to-5 schedules with purely output-based evaluation?',
       'Should organizations mandate equal parental leave for both mothers and fathers?',
       'Are non-compete clauses in employment contracts ethical in modern knowledge economies?',
@@ -136,8 +136,8 @@ const CATEGORIES = [
     description: 'Lateral thinking, leadership philosophy, character, and worldview',
     weight: 7,
     topics: [
-      'Success is a journey, not a destination.',
-      'Failure is a stepping stone or a stumbling block: it depends on human perception.',
+      'Is success truly defined by personal happiness rather than external material wealth?',
+      'Is failure a necessary stepping stone or an avoidable obstacle to success?',
       'Does true freedom exist without disciplined boundaries and social rules?',
       'Is patience a virtue or an obstacle in the fast-paced modern world?',
       'Innovation begins where conventional wisdom and traditional comfort end.',
@@ -154,7 +154,7 @@ const CATEGORIES = [
       'Has technology made people more productive or more dependent in everyday life?',
       'Is the rapid decline of physical cash compromising personal financial privacy?',
       'Are smart home devices genuinely enhancing security or creating surveillance risks?',
-      'Should coding and digital literacy be taught alongside reading and mathematics in primary school?',
+      'Should coding and digital literacy be taught alongside reading in primary school?',
     ],
   },
 ];
@@ -420,6 +420,17 @@ Generate a single, thought-provoking group discussion topic suitable for college
 Target Category: ${targetCategory.name}
 Category Scope: ${targetCategory.description}
 
+CRITICAL LENGTH REQUIREMENT:
+- Strictly MEDIUM length: between 8 and 13 words (minimum 8 words, maximum 13 words).
+- Must NOT be too long (no long sentences, no compound multi-clause paragraphs, max 13 words).
+- Must NOT be too short (no brief phrases or vague 2-6 word titles, min 8 words).
+- Must be a single crisp, balanced question or statement that easily sparks two opposing viewpoints.
+- Example good medium topics:
+  * "Should college education focus more on practical skills than examinations?" (10 words)
+  * "Can economic growth and environmental protection progress together sustainably?" (9 words)
+  * "Does remote work promote better work-life balance or lead to burnout?" (11 words)
+  * "Should public transit be completely free to reduce traffic congestion?" (10 words)
+
 STRICT CONSTRAINTS:
 1. Do NOT generate topics about Artificial Intelligence, ChatGPT, AI bots, or Automation.
 2. The topic must belong directly to the "${targetCategory.name}" category.
@@ -428,7 +439,7 @@ STRICT CONSTRAINTS:
 5. STRICTLY DO NOT repeat or rephrase any of the following previously used topics:
 ${previousTopics.slice(0, 15).map(t => `- "${t}"`).join('\n') || '- None'}
 
-Return ONLY the single discussion topic as a plain sentence or question. No quotes, no category prefix, no preamble.`;
+Return ONLY the single discussion topic as a plain sentence or question. No quotes, no category prefix, no preamble, no explanations.`;
 
       const response = await fetch(config.TOPIC_API_URL, {
         method: 'POST',
@@ -457,17 +468,25 @@ Return ONLY the single discussion topic as a plain sentence or question. No quot
           || null;
 
         if (topicCandidate && typeof topicCandidate === 'string') {
-          topicCandidate = topicCandidate.trim().replace(/^["']|["']$/g, '').replace(/^(Topic|Question):\s*/i, '');
+          // Take first non-empty line and strip quotes/prefixes/markdown
+          let cleaned = topicCandidate.replace(/^#+\s*/, '').replace(/^(Topic|Question|GD Topic):\s*/i, '');
+          const firstLine = cleaned.split(/\r?\n/).map(l => l.trim()).find(l => l.length > 0) || cleaned;
+          cleaned = firstLine.trim().replace(/^["']|["']$/g, '').trim();
+
+          // Count words: strictly medium length (8 to 14 words)
+          const words = cleaned.split(/\s+/).filter(Boolean);
+          const wordCount = words.length;
+          const isMediumLength = wordCount >= 8 && wordCount <= 14;
 
           // Check for AI-leakage or duplicate against history
-          const isAILeak = targetCategory.id !== 'technology' && /\b(ai|artificial intelligence|chatgpt)\b/i.test(topicCandidate);
-          const isDuplicate = isTopicRepeatedInHistory(topicCandidate, previousTopics);
+          const isAILeak = targetCategory.id !== 'technology' && /\b(ai|artificial intelligence|chatgpt|machine learning)\b/i.test(cleaned);
+          const isDuplicate = isTopicRepeatedInHistory(cleaned, previousTopics);
 
-          if (!isAILeak && !isDuplicate && topicCandidate.length > 15) {
-            console.log(`✅ Accepted API Topic (${targetCategory.name}): "${topicCandidate}"`);
-            return topicCandidate;
+          if (!isAILeak && !isDuplicate && isMediumLength) {
+            console.log(`✅ Accepted Medium API Topic (${targetCategory.name}, ${wordCount} words): "${cleaned}"`);
+            return cleaned;
           } else {
-            console.warn(`⚠️ API topic rejected (AI leak: ${isAILeak}, Duplicate: ${isDuplicate}): "${topicCandidate}". Switching to curated bank.`);
+            console.warn(`⚠️ API topic rejected (Word count: ${wordCount}, Medium: ${isMediumLength}, AI leak: ${isAILeak}, Duplicate: ${isDuplicate}): "${cleaned}". Switching to curated bank.`);
           }
         }
       }
